@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Camera, GitCompare, History, CreditCard, Globe, Menu, X, Dumbbell, User, Sun, Moon } from 'lucide-react';
+import { Camera, GitCompare, History, CreditCard, Globe, Menu, X, User, Sun, Moon, LogOut } from 'lucide-react';
 import { TRANSLATIONS } from '../data/translations';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ 
   onOpenScanner, 
@@ -14,7 +15,9 @@ export default function Navbar({
   isDarkMode,
   onToggleTheme
 }) {
+  const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
 
   const languages = [
@@ -27,26 +30,30 @@ export default function Navbar({
 
   return (
     <div className="fixed top-4 inset-x-0 z-50 flex justify-center px-4 pointer-events-none font-sans">
-      <header className="w-full max-w-6xl glass-island rounded-full px-4 sm:px-6 py-2.5 flex items-center justify-between pointer-events-auto transition-all duration-300 shadow-[0_15px_40px_rgba(0,0,0,0.4)]">
+      <header className="w-full max-w-6xl glass-island rounded-full px-4 sm:px-6 py-2 flex items-center justify-between pointer-events-auto transition-all duration-300 shadow-[0_15px_40px_rgba(0,0,0,0.4)]">
         
-        {/* Brand Logo with Maroon Ruby Accent */}
+        {/* Brand Logo with User Uploaded Official GymScan Logo */}
         <div className="flex items-center gap-3">
           <a href="#" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-rose-600 via-rose-500 to-amber-400 p-[1.5px] shadow-[0_0_20px_rgba(225,29,72,0.4)] group-hover:rotate-12 transition-transform duration-300">
-              <div className="w-full h-full bg-[#1A050A] dark:bg-[#1A050A] rounded-full flex items-center justify-center">
-                <Dumbbell className="w-4.5 h-4.5 text-rose-400" />
-              </div>
+            <div className="w-10 h-10 rounded-full bg-white p-[1px] shadow-[0_0_20px_rgba(225,29,72,0.4)] group-hover:scale-105 transition-transform duration-300 overflow-hidden flex items-center justify-center border border-rose-500/30">
+              <img 
+                src="/logo.png" 
+                alt="GymScan Logo" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-base font-black tracking-tight font-syne leading-none text-maroon-950 dark:text-white">
                 GYM<span className="text-rose-500">SCAN</span>
               </span>
-              <span className="text-[9px] font-mono tracking-widest text-rose-400 font-bold">AI LAB VISION</span>
+              <span className="text-[9px] font-mono tracking-widest text-emerald-600 dark:text-emerald-400 font-bold">
+                SCAN • TRACK • TRANSFORM
+              </span>
             </div>
           </a>
         </div>
 
-        {/* Desktop Island Navigation Links (PITCH DECK REMOVED) */}
+        {/* Desktop Island Navigation Links */}
         <nav className="hidden md:flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-300 bg-black/5 dark:bg-black/40 rounded-full px-3 py-1 border border-black/5 dark:border-white/5">
           <button 
             onClick={onOpenScanner}
@@ -120,14 +127,52 @@ export default function Navbar({
             </select>
           </div>
 
-          {/* Glowing Sign In Pill */}
-          <button 
-            onClick={onOpenAuth}
-            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 px-4 py-1.5 text-xs font-black text-white hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(225,29,72,0.35)] cursor-pointer"
-          >
-            <User className="w-3.5 h-3.5 text-white" />
-            <span>{t.signIn}</span>
-          </button>
+          {/* User Auth Pill or Glowing Sign In */}
+          {user ? (
+            <div className="relative group">
+              <button 
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-2 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 text-xs font-black text-emerald-400 hover:bg-emerald-500/25 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
+              >
+                <div className="w-5 h-5 rounded-full bg-emerald-500 text-black flex items-center justify-center text-[10px] font-black uppercase">
+                  {user.email.charAt(0)}
+                </div>
+                <span className="hidden sm:inline font-mono text-[11px] max-w-[100px] truncate">{user.email}</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-black text-[9px] font-black">
+                  ⚡ {user.freeScans}
+                </span>
+              </button>
+
+              {/* User Dropdown */}
+              {userMenuOpen && (
+                <div className="absolute right-0 top-11 w-56 glass-island rounded-2xl p-3 border border-emerald-500/30 shadow-2xl space-y-2 z-50 text-left animate-in fade-in zoom-in-95 duration-150">
+                  <div className="pb-2 border-b border-white/10">
+                    <span className="text-[10px] font-mono text-slate-400 block uppercase">ATHLETE ACCOUNT</span>
+                    <span className="text-xs font-bold text-white truncate block">{user.email}</span>
+                    <span className="text-[11px] font-bold text-emerald-400 block mt-1">
+                      ⚡ {user.freeScans} of 5 Free Scans Available
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => { logout(); setUserMenuOpen(false); }}
+                    className="w-full py-1.5 px-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs transition cursor-pointer text-left flex items-center gap-2"
+                  >
+                    <User className="w-3 h-3" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button 
+              onClick={onOpenAuth}
+              className="flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 px-4 py-1.5 text-xs font-black text-white hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(225,29,72,0.35)] cursor-pointer"
+            >
+              <User className="w-3.5 h-3.5 text-white" />
+              <span>{t.signIn}</span>
+            </button>
+          )}
 
           {/* Mobile Hamburger Toggle */}
           <button 

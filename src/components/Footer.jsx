@@ -1,14 +1,15 @@
 import React from 'react';
-import { Dumbbell } from 'lucide-react';
 
 export default function Footer({ onOpenPitch, onOpenPricing, onOpenScanner }) {
   return (
     <footer className="py-12 border-t border-rose-500/15 glass-island text-center text-slate-500 dark:text-rose-200/60 text-xs font-medium">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         
-        {/* Brand */}
-        <div className="flex items-center justify-center gap-2">
-          <Dumbbell className="w-5 h-5 text-rose-500" />
+        {/* Brand with Official GymScan Logo */}
+        <div className="flex items-center justify-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-white p-[1px] shadow-[0_0_15px_rgba(225,29,72,0.3)] overflow-hidden flex items-center justify-center border border-rose-500/30">
+            <img src="/logo.png" alt="GymScan Logo" className="w-full h-full object-contain" />
+          </div>
           <span className="text-base font-black font-syne tracking-tight text-maroon-950 dark:text-white">
             GYM<span className="text-rose-500">SCAN</span>
           </span>
@@ -32,7 +33,7 @@ export default function Footer({ onOpenPitch, onOpenPricing, onOpenScanner }) {
 
         {/* Copyright */}
         <p className="text-slate-500 dark:text-rose-300/50 text-xs">
-          © 2026 GymScan Technologies. Engineered for athletes. Built to protect your gains.
+          © 2026 GymScan Technologies. SCAN • TRACK • TRANSFORM. Built to protect your gains.
         </p>
 
       </div>

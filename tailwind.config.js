@@ -33,9 +33,8 @@ export default {
         }
       },
       fontFamily: {
-        syne: ['Syne', 'sans-serif'],
-        sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
-        outfit: ['Outfit', 'sans-serif'],
+        josefin: ['"Josefin Sans"', 'sans-serif'],
+        sans: ['"Josefin Sans"', '"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
       animation: {
@@ -45,6 +44,7 @@ export default {
         'scan-beam': 'scanBeam 2.4s ease-in-out infinite',
         'float-slow': 'floatDumbbell 4.5s ease-in-out infinite',
         'pulse-ruby': 'pulseRuby 2.5s infinite',
+        'shimmer': 'shimmer 2s linear infinite',
       },
       keyframes: {
         revolve3D: {
@@ -73,6 +73,10 @@ export default {
         pulseRuby: {
           '0%, 100%': { opacity: '0.4', transform: 'scale(1)' },
           '50%': { opacity: '0.85', transform: 'scale(1.08)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
         }
       }
     },

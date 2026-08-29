@@ -13,15 +13,16 @@ import AuthModal from './components/AuthModal';
 import Footer from './components/Footer';
 import { Camera, Sparkles, Dumbbell, ShieldCheck, Zap } from 'lucide-react';
 import { SAMPLE_PRODUCTS } from './data/sampleProducts';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-export default function App() {
+function AppContent() {
+  const { isAuthModalOpen, setIsAuthModalOpen, requireAuth, user } = useAuth();
   const [currentLang, setCurrentLang] = useState('en');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isPitchOpen, setIsPitchOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Dark / Day Mode State
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -74,16 +75,32 @@ export default function App() {
     } catch (e) {}
   };
 
+  const handleOpenScannerProtected = () => {
+    if (!user) {
+      requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!");
+      return;
+    }
+    setIsScannerOpen(true);
+  };
+
+  const handleOpenCompareProtected = () => {
+    if (!user) {
+      requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!");
+      return;
+    }
+    setIsCompareOpen(true);
+  };
+
   return (
     <div className="min-h-screen transition-colors duration-300 font-sans relative overflow-x-hidden">
       
       {/* Floating Glass Island Navbar with Day/Night Switcher */}
       <Navbar
-        onOpenScanner={() => setIsScannerOpen(true)}
-        onOpenCompare={() => setIsCompareOpen(true)}
+        onOpenScanner={handleOpenScannerProtected}
+        onOpenCompare={handleOpenCompareProtected}
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenPricing={() => setIsPricingOpen(true)}
-        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
         currentLang={currentLang}
         setCurrentLang={setCurrentLang}
         scanHistoryCount={scanHistory.length}
@@ -95,7 +112,7 @@ export default function App() {
       <main>
         {/* 1. Hero Section with 3D Revolving Whey Jar & Live Scanner Pod */}
         <HeroSection
-          onOpenScanner={() => setIsScannerOpen(true)}
+          onOpenScanner={handleOpenScannerProtected}
           onOpenPitch={() => setIsPitchOpen(true)}
           currentLang={currentLang}
         />
@@ -108,7 +125,7 @@ export default function App() {
 
         {/* 4. Bento Grid Superhuman Features */}
         <BentoFeatures
-          onOpenScanner={() => setIsScannerOpen(true)}
+          onOpenScanner={handleOpenScannerProtected}
         />
 
         {/* 5. Bold Bottom Call-to-Action */}
@@ -121,15 +138,15 @@ export default function App() {
                 GYM SCANNING.
               </span>
             </h2>
-            <p className="text-slate-600 dark:text-rose-100/70 max-w-xl mx-auto text-sm sm:text-base">
+            <p className="text-slate-600 dark:text-rose-100/70 max-w-xl mx-auto text-sm sm:text-base font-sans">
               Join thousands of bodybuilders, powerlifters, and everyday lifters protecting their wallet and kidneys from adulterated supplements.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 items-center">
               <button
-                onClick={() => setIsScannerOpen(true)}
+                onClick={handleOpenScannerProtected}
                 className="w-full sm:w-auto rounded-full bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 text-white px-10 py-5 font-black text-lg hover:scale-105 transition-transform duration-300 shadow-[0_0_40px_rgba(225,29,72,0.4)] cursor-pointer"
               >
-                Scan Your Supplement Now
+                Scan Your Supplement Now (5 Free Scans)
               </button>
               <button
                 onClick={() => setIsPricingOpen(true)}
@@ -146,7 +163,7 @@ export default function App() {
       <Footer
         onOpenPitch={() => setIsPitchOpen(true)}
         onOpenPricing={() => setIsPricingOpen(true)}
-        onOpenScanner={() => setIsScannerOpen(true)}
+        onOpenScanner={handleOpenScannerProtected}
       />
 
       {/* Interactive Modals */}
@@ -179,10 +196,19 @@ export default function App() {
       />
 
       <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onStartScanning={() => setIsScannerOpen(true)}
       />
 
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

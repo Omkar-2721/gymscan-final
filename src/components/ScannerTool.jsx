@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, X, CheckCircle2, AlertTriangle, ShieldAlert, Sparkles, RefreshCw, Zap, Award, ArrowRight, Share2, Layers } from 'lucide-react';
+import { Camera, Upload, X, CheckCircle2, AlertTriangle, ShieldAlert, Sparkles, RefreshCw, Zap, Award, ArrowRight, Share2, Layers, User } from 'lucide-react';
 import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
 import { analyzeSupplementIngredients } from '../utils/analyzer';
+import { useAuth } from '../context/AuthContext';
 
 export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
+  const { user, requireAuth, consumeScan } = useAuth();
   const [selectedSample, setSelectedSample] = useState(null);
   const [customText, setCustomText] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -15,6 +17,9 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   if (!isOpen) return null;
 
   const handleSelectSample = (sample) => {
+    if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
+    if (!consumeScan()) return;
+
     setSelectedSample(sample.id);
     setIsScanning(true);
     setScanResult(null);
@@ -29,6 +34,8 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   const handleCustomAnalyze = (e) => {
     e.preventDefault();
     if (!customText.trim()) return;
+    if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
+    if (!consumeScan()) return;
 
     setIsScanning(true);
     setScanResult(null);
@@ -44,6 +51,9 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
+      if (!consumeScan()) return;
+
       setIsScanning(true);
       setScanResult(null);
       setTimeout(() => {
@@ -56,6 +66,7 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   };
 
   const startCamera = async () => {
+    if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
     try {
       setCameraActive(true);
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -78,6 +89,7 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   };
 
   const capturePhoto = () => {
+    if (!consumeScan()) return;
     stopCamera();
     setIsScanning(true);
     setTimeout(() => {
