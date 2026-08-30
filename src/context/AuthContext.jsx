@@ -27,17 +27,65 @@ export function AuthProvider({ children }) {
     } catch (e) {}
   }, [user]);
 
-  // Strict email regex validation
+  // Strict email regex and domain typo validation
   const validateEmail = (email) => {
     if (!email) return false;
+    const clean = String(email).trim().toLowerCase();
+    
+    // Strict RFC regex with valid TLD of at least 2 chars
     const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return re.test(String(email).trim().toLowerCase());
+    if (!re.test(clean)) return false;
+
+    // Check user and domain length
+    const parts = clean.split('@');
+    if (parts.length !== 2) return false;
+    const [userPart, domainPart] = parts;
+    if (userPart.length < 2 || domainPart.length < 4) return false;
+
+    // Blacklist common domain typos
+    const typoDomains = [
+      'gmial.com', 'gmai.com', 'gamil.com', 'gmaill.com', 'gmail.co', 'gmaik.com', 'gmali.com', 'gmaol.com', 'gmeil.com',
+      'yaho.com', 'yahooo.com', 'ymail.co', 'yahou.com',
+      'hotmial.com', 'hotmai.com', 'hotmali.com',
+      'outlok.com', 'outloo.com', 'outlock.com'
+    ];
+
+    if (typoDomains.includes(domainPart)) {
+      return false;
+    }
+
+    // Must have a valid dot in domain with standard TLD
+    const domainParts = domainPart.split('.');
+    if (domainParts.length < 2) return false;
+    const tld = domainParts[domainParts.length - 1];
+    if (tld.length < 2 || tld.length > 10) return false;
+
+    return true;
   };
 
   const loginWithEmail = (rawEmail) => {
     const cleanEmail = String(rawEmail).trim().toLowerCase();
+    
+    // Detailed error feedback for domain typos
+    const parts = cleanEmail.split('@');
+    if (parts.length === 2) {
+      const domain = parts[1];
+      if (['gmial.com', 'gmai.com', 'gamil.com', 'gmaill.com', 'gmali.com', 'gmaol.com', 'gmeil.com'].includes(domain)) {
+        return { success: false, error: "Typo detected: Did you mean '@gmail.com'? Please enter your correct email." };
+      }
+      if (['yaho.com', 'yahooo.com', 'yahou.com'].includes(domain)) {
+        return { success: false, error: "Typo detected: Did you mean '@yahoo.com'? Please enter your correct email." };
+      }
+      if (['hotmial.com', 'hotmai.com'].includes(domain)) {
+        return { success: false, error: "Typo detected: Did you mean '@hotmail.com'? Please enter your correct email." };
+      }
+      if (['outlok.com', 'outloo.com'].includes(domain)) {
+        return { success: false, error: "Typo detected: Did you mean '@outlook.com'? Please enter your correct email." };
+      }
+    }
+
     if (!validateEmail(cleanEmail)) {
-      return { success: false, error: 'Please enter a valid email address (e.g. athlete@gmail.com)' };
+      return { success: false, error: 'Please enter a valid active email address (e.g. athlete@gmail.com)' };
     }
 
     // Check if user already exists in storage or create new with 5 free scans

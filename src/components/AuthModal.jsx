@@ -23,6 +23,12 @@ export default function AuthModal({ isOpen, onClose, onStartScanning }) {
     const val = e.target.value;
     setEmail(val);
     if (isTouched) {
+      const cleanVal = String(val).trim().toLowerCase();
+      const parts = cleanVal.split('@');
+      if (parts.length === 2 && ['gmial.com', 'gmai.com', 'gamil.com', 'gmaill.com', 'gmali.com', 'gmaol.com', 'gmeil.com'].includes(parts[1])) {
+        setErrorMsg("Typo detected: Did you mean '@gmail.com'?");
+        return;
+      }
       if (!validateEmail(val)) {
         setErrorMsg("Please enter a valid email format (e.g., athlete@gmail.com)");
       } else {

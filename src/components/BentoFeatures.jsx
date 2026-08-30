@@ -1,19 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, ShieldCheck, Sparkles, AlertOctagon, HeartPulse, Zap, Award, CheckCircle2, ChevronRight, Cpu, Microscope } from 'lucide-react';
 
 export default function BentoFeatures({ onOpenScanner }) {
+  const sectionRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.15 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => {
+      if (sectionRef.current) observer.unobserve(sectionRef.current);
+    };
+  }, []);
+
   return (
-    <section className="py-20 md:py-28 relative">
+    <section ref={sectionRef} className="py-20 md:py-28 relative font-josefin">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Heading */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-14 gap-6">
+        <div className={`flex flex-col md:flex-row md:items-end justify-between mb-14 gap-6 transition-all duration-700 transform ${
+          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+        }`}>
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 dark:bg-black/60 px-3.5 py-1 text-xs font-mono font-bold text-rose-600 dark:text-rose-300 border border-rose-500/30 mb-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 dark:bg-black/60 px-3.5 py-1 text-xs font-mono font-bold text-rose-600 dark:text-rose-300 border border-rose-500/30 mb-3 shadow-lg">
               <Cpu className="w-3.5 h-3.5 text-rose-500" />
               <span>PROPRIETARY BIOCHEMICAL ENGINE</span>
             </div>
-            <h2 className="text-3xl sm:text-5xl font-black font-syne tracking-tight text-maroon-950 dark:text-white">
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-maroon-950 dark:text-white">
               Tactical Lab Architecture.<br />
               <span className="text-rose-700/60 dark:text-rose-300/40">Unmasking the Supplement Industry.</span>
             </h2>
@@ -27,11 +52,13 @@ export default function BentoFeatures({ onOpenScanner }) {
           </button>
         </div>
 
-        {/* Tactical Bento Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        {/* Tactical Bento Grid Layout with Scroll Stagger Reveal */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 font-sans">
           
           {/* Card 1: Instant AI Vision Extraction (7 Columns) */}
-          <div className="md:col-span-7 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group">
+          <div className={`md:col-span-7 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group transition-all duration-700 transform hover:scale-[1.01] ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+          }`}>
             <div className="flex justify-between items-start mb-8">
               <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center border border-rose-500/30 shadow-[0_0_20px_rgba(225,29,72,0.2)]">
                 <Microscope className="w-6 h-6" />
@@ -42,7 +69,7 @@ export default function BentoFeatures({ onOpenScanner }) {
             </div>
 
             <div>
-              <h3 className="text-2xl font-black font-syne text-maroon-950 dark:text-white mb-2">Instant OCR Label Microprint Extraction</h3>
+              <h3 className="text-2xl font-black font-josefin text-maroon-950 dark:text-white mb-2">Instant OCR Label Microprint Extraction</h3>
               <p className="text-slate-600 dark:text-rose-100/70 text-sm leading-relaxed max-w-lg mb-6">
                 No barcodes required. Curved tubs, crinkled sachets, and foil pouches are deciphered in milliseconds with our specialized fitness toxicological database.
               </p>
@@ -55,7 +82,9 @@ export default function BentoFeatures({ onOpenScanner }) {
           </div>
 
           {/* Card 2: WADA & Banned Substance Screener (5 Columns) */}
-          <div className="md:col-span-5 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group">
+          <div className={`md:col-span-5 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group transition-all duration-700 delay-150 transform hover:scale-[1.01] ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+          }`}>
             <div className="flex justify-between items-start mb-8">
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
                 <ShieldCheck className="w-6 h-6" />
@@ -66,7 +95,7 @@ export default function BentoFeatures({ onOpenScanner }) {
             </div>
 
             <div>
-              <h3 className="text-xl font-black font-syne text-maroon-950 dark:text-white mb-2">Banned Stimulant Screener</h3>
+              <h3 className="text-xl font-black font-josefin text-maroon-950 dark:text-white mb-2">Banned Stimulant Screener</h3>
               <p className="text-slate-600 dark:text-rose-100/70 text-xs sm:text-sm leading-relaxed mb-4">
                 Instantly detects DMAA, DMHA, Synephrine, Ephedra analogues, and hidden prohibited alkaloids in pre-workouts.
               </p>
@@ -78,7 +107,9 @@ export default function BentoFeatures({ onOpenScanner }) {
           </div>
 
           {/* Card 3: Personalized Lifter Profiles (5 Columns) */}
-          <div className="md:col-span-5 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group">
+          <div className={`md:col-span-5 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group transition-all duration-700 delay-200 transform hover:scale-[1.01] ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+          }`}>
             <div className="flex justify-between items-start mb-8">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/30">
                 <HeartPulse className="w-6 h-6" />
@@ -89,7 +120,7 @@ export default function BentoFeatures({ onOpenScanner }) {
             </div>
 
             <div>
-              <h3 className="text-xl font-black font-syne text-maroon-950 dark:text-white mb-2">Personalized Lifter Profiles</h3>
+              <h3 className="text-xl font-black font-josefin text-maroon-950 dark:text-white mb-2">Personalized Lifter Profiles</h3>
               <p className="text-slate-600 dark:text-rose-100/70 text-xs sm:text-sm leading-relaxed">
                 Filter by Clean Bulking (low sugar), Cutting (zero maltodextrin), Vegan Athlete, Lactose-Free, or Liver/Kidney Health.
               </p>
@@ -97,7 +128,9 @@ export default function BentoFeatures({ onOpenScanner }) {
           </div>
 
           {/* Card 4: Cumulative Heavy Metal & Sweetener Tracker (7 Columns) */}
-          <div className="md:col-span-7 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group">
+          <div className={`md:col-span-7 rounded-3xl glass-card-neo p-8 flex flex-col justify-between group transition-all duration-700 delay-300 transform hover:scale-[1.01] ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+          }`}>
             <div className="flex justify-between items-start mb-8">
               <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center border border-rose-500/30">
                 <AlertOctagon className="w-6 h-6" />
@@ -108,7 +141,7 @@ export default function BentoFeatures({ onOpenScanner }) {
             </div>
 
             <div>
-              <h3 className="text-2xl font-black font-syne text-maroon-950 dark:text-white mb-2">Cumulative Toxic Load Engine</h3>
+              <h3 className="text-2xl font-black font-josefin text-maroon-950 dark:text-white mb-2">Cumulative Toxic Load Engine</h3>
               <p className="text-slate-600 dark:text-rose-100/70 text-sm leading-relaxed max-w-lg">
                 Track your multi-supplement daily load of Sucralose, Acesulfame-K, and residual heavy metals across your protein, creatine, and pre-workout stack before gut microbiome damage occurs.
               </p>
