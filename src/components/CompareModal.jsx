@@ -36,6 +36,8 @@ export default function CompareModal({ isOpen, onClose }) {
 
   const fileInputA = useRef(null);
   const fileInputB = useRef(null);
+  const cameraFileInputA = useRef(null);
+  const cameraFileInputB = useRef(null);
 
   const healthProfileOptions = [
     { id: 'diabetic', label: 'Diabetic-Friendly (Low Glycemic / Sugar Free)' },
@@ -78,9 +80,30 @@ export default function CompareModal({ isOpen, onClose }) {
     verdict: "Moderate - Offers good protein content per serving but Indian formulation includes artificial sweeteners (Sucralose, Ace-K) and Maltodextrin."
   };
 
+  const handleTriggerCamera = (slot) => {
+    if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
+    
+    // Check if mediaDevices is supported, otherwise trigger native camera directly
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      setCameraActiveSlot(slot);
+    } else {
+      if (slot === 'A') cameraFileInputA.current?.click();
+      else cameraFileInputB.current?.click();
+    }
+  };
+
   useEffect(() => {
     if (cameraActiveSlot) {
-      navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'environment' } })
+      // High-resolution portrait-optimized camera stream
+      const constraints = {
+        video: { 
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      };
+
+      navigator.mediaDevices?.getUserMedia(constraints)
         .then((stream) => {
           mediaStreamRef.current = stream;
           if (videoRef.current) {
@@ -89,8 +112,11 @@ export default function CompareModal({ isOpen, onClose }) {
           }
         })
         .catch((err) => {
-          alert('Camera access unavailable. Please upload an image file instead.');
+          console.warn('Live viewfinder stream unavailable, opening phone camera app instead:', err);
+          const currentSlot = cameraActiveSlot;
           setCameraActiveSlot(null);
+          if (currentSlot === 'A') cameraFileInputA.current?.click();
+          else if (currentSlot === 'B') cameraFileInputB.current?.click();
         });
     } else {
       if (mediaStreamRef.current) {
@@ -116,7 +142,7 @@ export default function CompareModal({ isOpen, onClose }) {
 
   const handleFileChange = (slot, e) => {
     if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       if (slot === 'A') setIsSlotScanningA(true);
@@ -142,8 +168,8 @@ export default function CompareModal({ isOpen, onClose }) {
     if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
+      canvas.width = videoRef.current.videoWidth || 720;
+      canvas.height = videoRef.current.videoHeight || 1280;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/png');
@@ -230,31 +256,34 @@ export default function CompareModal({ isOpen, onClose }) {
 
       try {
         confetti({
-          particleCount: 90,
-          spread: 75,
+          particleCount: 120,
+          spread: 80,
           origin: { y: 0.6 },
-          colors: ['#E11D48', '#FDA4AF', '#10B981', '#F59E0B']
+          colors: ['#E11D48', '#10B981', '#F59E0B', '#3B82F6']
         });
       } catch (e) {}
     }, 3500);
   };
 
-  const handleShareWhatsApp = () => {
-    const text = encodeURIComponent(
-      `GymScan Showdown Report:\nWinner: ${winner?.name || 'Clean Isolate'} (${winner?.purityScore}/100) defeated ${loser?.name || 'Spiked Whey'}!\nScanned with GymScan AI.`
-    );
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  const handleReset = () => {
+    setImgA(null);
+    setImgB(null);
+    setProdA(null);
+    setProdB(null);
+    setHasCompared(false);
+    setIsAnalyzing(false);
+    setScanProgress(0);
+    setScanStep(1);
   };
 
-  const currentProdA = prodA || (isImagesIdentical ? GNC_TIED_PRODUCT : SAMPLE_PRODUCTS[0]);
-  const currentProdB = prodB || (isImagesIdentical ? GNC_TIED_PRODUCT : SAMPLE_PRODUCTS[1]);
-  const isTie = isImagesIdentical || (currentProdA.purityScore === currentProdB.purityScore);
-  const winner = isTie ? currentProdA : (currentProdA.purityScore >= currentProdB.purityScore ? currentProdA : currentProdB);
-  const loser = isTie ? currentProdB : (currentProdA.purityScore < currentProdB.purityScore ? currentProdA : currentProdB);
-  const scoreDiff = Math.abs(currentProdA.purityScore - currentProdB.purityScore);
+  const winner = (prodA && prodB) ? (
+    isImagesIdentical ? 'tie' :
+    prodA.purityScore > prodB.purityScore ? 'A' :
+    prodB.purityScore > prodA.purityScore ? 'B' : 'tie'
+  ) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-2xl overflow-y-auto font-josefin">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-xl overflow-y-auto font-josefin">
       
       {/* Toast Alert */}
       {toastMsg && (
@@ -264,42 +293,82 @@ export default function CompareModal({ isOpen, onClose }) {
         </div>
       )}
 
-      {/* Live Camera Viewfinder Modal */}
+      {/* Live Vertical High-Res Camera Viewfinder Modal */}
       {cameraActiveSlot && (
-        <div className="fixed inset-0 z-60 bg-black/95 flex flex-col items-center justify-center p-4">
-          <div className="relative w-full max-w-lg glass-hud rounded-3xl p-5 border border-rose-500/40 space-y-4">
+        <div className="fixed inset-0 z-60 bg-black/95 flex flex-col items-center justify-center p-3 sm:p-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-sm sm:max-w-md glass-hud rounded-3xl p-4 sm:p-5 border border-rose-500/40 space-y-3.5 shadow-[0_0_50px_rgba(225,29,72,0.35)]">
+            
             <div className="flex justify-between items-center pb-2 border-b border-rose-500/20">
-              <span className="text-xs font-black uppercase text-rose-400">
-                Live Camera — Product {cameraActiveSlot} Label
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                <span className="text-xs sm:text-sm font-black uppercase text-rose-400 tracking-wider">
+                  Live Scanner — Product {cameraActiveSlot}
+                </span>
+              </div>
               <button 
                 onClick={() => setCameraActiveSlot(null)}
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer transition"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-black border border-rose-500/30 flex items-center justify-center">
+            {/* Vertical & Larger Viewfinder for Supplements */}
+            <div className="relative aspect-[3/4] sm:aspect-[4/5] w-full rounded-2xl overflow-hidden bg-black border border-rose-500/40 shadow-inner flex items-center justify-center">
               <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-              <div className="absolute inset-x-0 h-[2px] bg-rose-500 shadow-[0_0_15px_#E11D48] animate-laser-sweep pointer-events-none"></div>
+              
+              {/* Vertical Laser Scan Sweep */}
+              <div className="absolute inset-x-0 h-[2.5px] bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_20px_#E11D48] animate-laser-sweep pointer-events-none z-20"></div>
+
+              {/* Supplement Alignment AR Frame (Center Box) */}
+              <div className="absolute inset-x-5 inset-y-8 sm:inset-x-8 sm:inset-y-12 border border-rose-500/50 rounded-2xl pointer-events-none flex flex-col justify-between p-3 z-10">
+                <div className="flex justify-between">
+                  <div className="w-5 h-5 border-t-2 border-l-2 border-rose-500 rounded-tl-sm"></div>
+                  <div className="w-5 h-5 border-t-2 border-r-2 border-rose-500 rounded-tr-sm"></div>
+                </div>
+
+                <div className="text-center">
+                  <span className="text-[9px] sm:text-[10px] font-mono font-bold bg-black/80 text-rose-300 px-3 py-1 rounded-full border border-rose-500/30 tracking-wider uppercase backdrop-blur-sm">
+                    FIT BOTTLE / LABEL IN FRAME
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <div className="w-5 h-5 border-b-2 border-l-2 border-rose-500 rounded-bl-sm"></div>
+                  <div className="w-5 h-5 border-b-2 border-r-2 border-rose-500 rounded-br-sm"></div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-center pt-2">
+            {/* Actions & Native Phone Camera Fallback */}
+            <div className="space-y-2 pt-1 text-center font-sans">
               <button
                 onClick={handleCaptureSnapshot}
-                className="px-8 py-3 rounded-full bg-gradient-to-r from-rose-600 to-amber-500 text-white font-black text-sm uppercase tracking-wider shadow-lg flex items-center gap-2 cursor-pointer"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 cursor-pointer hover:opacity-95 active:scale-95 transition"
               >
                 <Camera className="w-4 h-4" />
-                <span>Capture Label</span>
+                <span>Capture Product {cameraActiveSlot} Label</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const slot = cameraActiveSlot;
+                  setCameraActiveSlot(null);
+                  if (slot === 'A') cameraFileInputA.current?.click();
+                  else cameraFileInputB.current?.click();
+                }}
+                className="text-[11px] font-bold text-rose-300 hover:text-white underline cursor-pointer inline-block pt-1"
+              >
+                📱 Or Tap Here to Use Phone Camera App
               </button>
             </div>
+
           </div>
         </div>
       )}
 
       {/* Main Compare Modal View */}
-      <div className="relative w-full max-w-5xl glass-hud rounded-3xl p-4 sm:p-8 my-4 border border-rose-500/30 shadow-[0_25px_65px_rgba(0,0,0,0.8)] max-h-[94vh] overflow-y-auto">
+      <div className="relative w-full max-w-5xl glass-hud rounded-3xl p-3.5 sm:p-8 my-2 sm:my-4 border border-rose-500/30 shadow-[0_25px_65px_rgba(0,0,0,0.8)] max-h-[96vh] overflow-y-auto">
         
         {/* Close Button */}
         <button 
@@ -425,14 +494,15 @@ export default function CompareModal({ isOpen, onClose }) {
                 <div className="flex flex-wrap gap-2 justify-center pt-2">
                   <button
                     onClick={() => fileInputA.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-rose-500/20 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-rose-500/20 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer flex items-center gap-1.5"
                   >
-                    Select Image
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Select Image</span>
                   </button>
 
                   <button
-                    onClick={() => setCameraActiveSlot('A')}
-                    className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => handleTriggerCamera('A')}
+                    className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <Camera className="w-3.5 h-3.5" />
                     <span>Open Camera</span>
@@ -442,6 +512,7 @@ export default function CompareModal({ isOpen, onClose }) {
             )}
 
             <input ref={fileInputA} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange('A', e)} />
+            <input ref={cameraFileInputA} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange('A', e)} />
 
             {/* Quick Demo Tub A Selection */}
             <div className="pt-2">
@@ -528,14 +599,15 @@ export default function CompareModal({ isOpen, onClose }) {
                 <div className="flex flex-wrap gap-2 justify-center pt-2">
                   <button
                     onClick={() => fileInputB.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-rose-500/20 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-rose-500/20 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer flex items-center gap-1.5"
                   >
-                    Select Image
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Select Image</span>
                   </button>
 
                   <button
-                    onClick={() => setCameraActiveSlot('B')}
-                    className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => handleTriggerCamera('B')}
+                    className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <Camera className="w-3.5 h-3.5" />
                     <span>Open Camera</span>
@@ -545,6 +617,7 @@ export default function CompareModal({ isOpen, onClose }) {
             )}
 
             <input ref={fileInputB} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange('B', e)} />
+            <input ref={cameraFileInputB} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange('B', e)} />
 
             {/* Quick Demo Tub B Selection */}
             <div className="pt-2">

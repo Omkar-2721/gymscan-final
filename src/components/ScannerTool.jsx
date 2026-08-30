@@ -13,6 +13,8 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('camera');
 
   if (!isOpen) return null;
 
@@ -49,7 +51,7 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   };
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) {
       if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
       if (!consumeScan()) return;
@@ -69,14 +71,21 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
     if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
     try {
       setCameraActive(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const constraints = {
+        video: { 
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
     } catch (err) {
-      console.error("Camera access error:", err);
-      alert("Camera access not available in this browser window. You can upload an image or choose one of our verified sample labels below!");
+      console.warn("Camera stream unavailable, opening native phone camera app:", err);
       setCameraActive(false);
+      cameraInputRef.current?.click();
     }
   };
 
@@ -101,120 +110,186 @@ export default function ScannerTool({ isOpen, onClose, onSaveToHistory }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl overflow-y-auto">
-      <div className="relative w-full max-w-4xl glass-hud rounded-3xl p-6 sm:p-8 my-8 border border-rose-500/30 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-xl overflow-y-auto font-josefin">
+      <div className="relative w-full max-w-4xl glass-hud rounded-3xl p-4 sm:p-8 my-2 sm:my-8 border border-rose-500/30 shadow-[0_25px_65px_rgba(0,0,0,0.8)] max-h-[96vh] overflow-y-auto">
         
         {/* Close Button */}
         <button 
           onClick={() => { stopCamera(); onClose(); }}
-          className="absolute top-6 right-6 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer z-20"
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer z-20"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
-            <Camera className="w-5 h-5" />
+        {/* Modal Header */}
+        <div className="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6 pr-10">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30 shrink-0">
+            <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h2 className="text-2xl font-black font-syne text-maroon-950 dark:text-white">AI Supplement Vision Scanner</h2>
-            <p className="text-xs text-slate-500 dark:text-rose-300/70">Scan any Whey Protein, Pre-Workout, or Creatine tub label</p>
+            <h2 className="text-xl sm:text-2xl font-black text-maroon-950 dark:text-white leading-tight">
+              AI Supplement Vision Scanner
+            </h2>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-rose-300/70 font-sans">
+              Scan any Whey Protein, Pre-Workout, or Creatine tub label
+            </p>
           </div>
         </div>
 
         {/* Camera / Upload Mode */}
         {!scanResult && !isScanning && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             
-            {/* Live Camera Viewfinder */}
+            {/* Live Vertical Camera Viewfinder */}
             {cameraActive ? (
-              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-rose-500/50">
-                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
-                <div className="absolute inset-0 border-2 border-dashed border-rose-400/60 m-8 rounded-xl pointer-events-none flex items-center justify-center">
-                  <span className="text-xs font-mono text-rose-300 bg-black/60 px-3 py-1 rounded">ALIGN INGREDIENTS HERE</span>
+              <div className="relative w-full max-w-sm sm:max-w-md mx-auto aspect-[3/4] sm:aspect-[4/5] min-h-[420px] max-h-[72vh] rounded-3xl overflow-hidden bg-black border border-rose-500/50 shadow-2xl flex flex-col justify-between p-4 animate-in fade-in zoom-in-95 duration-200">
+                <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover"></video>
+                
+                {/* Laser scan beam */}
+                <div className="absolute inset-x-0 h-[2.5px] bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_20px_#E11D48] animate-laser-sweep pointer-events-none z-20"></div>
+
+                {/* Supplement Framing Bracket Guide */}
+                <div className="absolute inset-x-5 inset-y-8 sm:inset-x-8 sm:inset-y-12 border border-rose-500/50 rounded-2xl pointer-events-none flex flex-col justify-between p-3 z-10">
+                  <div className="flex justify-between">
+                    <div className="w-5 h-5 border-t-2 border-l-2 border-rose-500 rounded-tl-sm"></div>
+                    <div className="w-5 h-5 border-t-2 border-r-2 border-rose-500 rounded-tr-sm"></div>
+                  </div>
+
+                  <div className="text-center">
+                    <span className="text-[9px] sm:text-[10px] font-mono font-bold bg-black/80 text-rose-300 px-3 py-1 rounded-full border border-rose-500/30 tracking-wider uppercase backdrop-blur-sm">
+                      FIT BOTTLE / LABEL IN FRAME
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <div className="w-5 h-5 border-b-2 border-l-2 border-rose-500 rounded-bl-sm"></div>
+                    <div className="w-5 h-5 border-b-2 border-r-2 border-rose-500 rounded-br-sm"></div>
+                  </div>
                 </div>
-                <div className="absolute bottom-4 inset-x-0 flex justify-center gap-4">
-                  <button 
-                    onClick={capturePhoto}
-                    className="px-6 py-2.5 rounded-full bg-rose-500 text-white font-black text-sm flex items-center gap-2 shadow-lg cursor-pointer"
+
+                {/* Bottom Live Controls */}
+                <div className="relative z-30 mt-auto pt-4 space-y-2 text-center font-sans">
+                  <div className="flex justify-center gap-3">
+                    <button 
+                      onClick={capturePhoto}
+                      className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(225,29,72,0.5)] hover:opacity-95 active:scale-95 cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" /> Snap & Analyze
+                    </button>
+                    <button 
+                      onClick={stopCamera}
+                      className="px-4 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-slate-300 font-bold text-xs cursor-pointer transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      stopCamera();
+                      cameraInputRef.current?.click();
+                    }}
+                    className="text-[11px] font-bold text-rose-300 hover:text-white underline cursor-pointer inline-block pt-1"
                   >
-                    <Camera className="w-4 h-4" /> Snap & Analyze
-                  </button>
-                  <button 
-                    onClick={stopCamera}
-                    className="px-4 py-2.5 rounded-full bg-slate-800 text-slate-300 font-bold text-sm cursor-pointer"
-                  >
-                    Cancel
+                    📱 Or Tap to Use Phone Camera App
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 font-sans">
+                
+                {/* 1. Live Camera Button */}
                 <button
                   onClick={startCamera}
-                  className="p-6 rounded-2xl glass-card-neo border border-rose-500/20 hover:border-rose-500/50 flex flex-col items-center justify-center gap-3 group transition cursor-pointer"
+                  className="p-5 sm:p-6 rounded-2xl glass-card-neo border border-rose-500/20 hover:border-rose-500/50 flex flex-col items-center justify-center gap-2.5 group transition cursor-pointer text-center"
                 >
-                  <div className="w-12 h-12 rounded-full bg-rose-500/10 group-hover:bg-rose-500/20 text-rose-500 flex items-center justify-center transition">
-                    <Camera className="w-6 h-6" />
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-500/10 group-hover:bg-rose-500/20 text-rose-500 flex items-center justify-center transition shadow-sm">
+                    <Camera className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
-                  <div className="text-center">
-                    <span className="block font-bold font-syne text-maroon-950 dark:text-white text-sm">Open Live Camera</span>
-                    <span className="text-[11px] text-slate-500 dark:text-rose-200/60">Scan directly from your phone or webcam</span>
+                  <div>
+                    <span className="block font-bold text-maroon-950 dark:text-white text-xs sm:text-sm">
+                      Open Live Camera
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-rose-200/60">
+                      Vertical AR frame for tubs & bottles
+                    </span>
                   </div>
                 </button>
 
+                {/* 2. File Upload Button */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-6 rounded-2xl glass-card-neo border border-rose-500/20 hover:border-rose-500/50 flex flex-col items-center justify-center gap-3 group transition cursor-pointer"
+                  className="p-5 sm:p-6 rounded-2xl glass-card-neo border border-rose-500/20 hover:border-rose-500/50 flex flex-col items-center justify-center gap-2.5 group transition cursor-pointer text-center"
                 >
-                  <div className="w-12 h-12 rounded-full bg-rose-500/10 group-hover:bg-rose-500/20 text-rose-500 flex items-center justify-center transition">
-                    <Upload className="w-6 h-6" />
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-500/10 group-hover:bg-rose-500/20 text-rose-500 flex items-center justify-center transition shadow-sm">
+                    <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
-                  <div className="text-center">
-                    <span className="block font-bold font-syne text-maroon-950 dark:text-white text-sm">Upload Label Photo</span>
-                    <span className="text-[11px] text-slate-500 dark:text-rose-200/60">Upload PNG, JPG, or screenshot</span>
+                  <div>
+                    <span className="block font-bold text-maroon-950 dark:text-white text-xs sm:text-sm">
+                      Upload Label Photo
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-rose-200/60">
+                      Upload PNG, JPG, or screenshot
+                    </span>
                   </div>
-                  <input 
-                    ref={fileInputRef} 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handleFileUpload} 
-                  />
                 </button>
+
+                <input 
+                  ref={fileInputRef} 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleFileUpload} 
+                />
+
+                <input 
+                  ref={cameraInputRef} 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment" 
+                  className="hidden" 
+                  onChange={handleFileUpload} 
+                />
               </div>
             )}
 
             {/* Quick Test Preset Samples */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
+            <div className="pt-2">
+              <div className="flex items-center gap-2 mb-2.5">
                 <Sparkles className="w-4 h-4 text-rose-500" />
-                <h3 className="text-xs font-bold font-syne uppercase tracking-wider text-slate-700 dark:text-rose-300">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-rose-300">
                   Or Test Instantly with Verified Presets
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 font-sans">
                 {SAMPLE_PRODUCTS.map((sample) => (
                   <div
                     key={sample.id}
                     onClick={() => handleSelectSample(sample)}
-                    className="p-3.5 rounded-2xl glass-card-neo border border-rose-500/20 hover:border-rose-500/50 flex items-center justify-between cursor-pointer group transition"
+                    className="p-3 rounded-2xl glass-card-neo border border-rose-500/20 hover:border-rose-500/50 flex items-center justify-between cursor-pointer group transition"
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold font-syne text-maroon-950 dark:text-white group-hover:text-rose-400 transition">{sample.name}</span>
+                        <span className="text-xs font-bold text-maroon-950 dark:text-white group-hover:text-rose-400 transition truncate max-w-[180px]">
+                          {sample.name}
+                        </span>
                         {sample.riskLevel === 'danger' && (
-                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-600 dark:text-rose-400">SPIKED</span>
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-600 dark:text-rose-400">
+                            SPIKED
+                          </span>
                         )}
                         {sample.riskLevel === 'safe' && (
-                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">CLEAN</span>
+                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                            CLEAN
+                          </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-rose-200/60 mt-0.5">{sample.category} • {sample.brand}</p>
+                      <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-rose-200/60 mt-0.5">
+                        {sample.category} • {sample.brand}
+                      </p>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all" />
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-rose-500 group-hover:translate-x-1 transition-all shrink-0" />
                   </div>
                 ))}
               </div>

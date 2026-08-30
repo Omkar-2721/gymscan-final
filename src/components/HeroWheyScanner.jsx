@@ -21,7 +21,7 @@ export default function HeroWheyScanner() {
   };
 
   return (
-    <div className="relative w-full flex items-center justify-center py-2 sm:py-4 select-none overflow-hidden max-w-full">
+    <div className="relative w-full flex items-center justify-center py-2 sm:py-4 select-none overflow-hidden max-w-full font-josefin">
       
       {/* Toast Alert */}
       {toastMsg && (
@@ -32,18 +32,18 @@ export default function HeroWheyScanner() {
       )}
 
       {/* Main Free-Floating 3D Revolving Stage */}
-      <div className="relative w-full max-w-[480px] h-[440px] xs:h-[480px] sm:h-[530px] md:h-[560px] flex items-center justify-center perspective-stage">
+      <div className="relative w-full max-w-[460px] h-[360px] xs:h-[400px] sm:h-[480px] md:h-[540px] flex items-center justify-center perspective-stage">
         
         {/* Ambient Underglow Spotlights */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 sm:w-80 md:w-96 h-64 sm:h-80 md:h-96 rounded-full bg-rose-600/25 blur-[70px] sm:blur-[95px] pointer-events-none"></div>
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-48 sm:w-64 h-8 sm:h-12 bg-rose-500/35 rounded-full blur-xl sm:blur-2xl pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 sm:w-80 md:w-96 h-56 sm:h-80 md:h-96 rounded-full bg-rose-600/25 blur-[60px] sm:blur-[95px] pointer-events-none"></div>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-40 sm:w-64 h-6 sm:h-12 bg-rose-500/35 rounded-full blur-lg sm:blur-2xl pointer-events-none"></div>
 
         {/* Floating Orbital Scanner Rings */}
-        <div className="absolute inset-0 m-auto w-[280px] xs:w-[320px] sm:w-[400px] md:w-[440px] h-[280px] xs:h-[320px] sm:h-[400px] md:h-[440px] rounded-full border border-rose-500/25 animate-orbit-ring pointer-events-none border-dashed"></div>
-        <div className="absolute inset-0 m-auto w-[230px] xs:w-[270px] sm:w-[330px] md:w-[370px] h-[230px] xs:h-[270px] sm:h-[330px] md:h-[370px] rounded-full border border-rose-400/30 animate-orbit-ring-reverse pointer-events-none"></div>
+        <div className="absolute inset-0 m-auto w-[250px] xs:w-[290px] sm:w-[380px] md:w-[420px] h-[250px] xs:h-[290px] sm:h-[380px] md:h-[420px] rounded-full border border-rose-500/25 animate-orbit-ring pointer-events-none border-dashed"></div>
+        <div className="absolute inset-0 m-auto w-[210px] xs:w-[250px] sm:w-[320px] md:w-[350px] h-[210px] xs:h-[250px] sm:h-[320px] md:h-[350px] rounded-full border border-rose-400/30 animate-orbit-ring-reverse pointer-events-none"></div>
 
         {/* Floating 3D Revolving Whey Jar (Responsive Scaling) */}
-        <div className="relative z-10 w-60 xs:w-72 sm:w-88 md:w-[360px] lg:w-[400px] h-[340px] xs:h-[400px] sm:h-[460px] md:h-[500px] flex items-center justify-center animate-revolve-tub transform-gpu group cursor-grab active:cursor-grabbing">
+        <div className="relative z-10 w-52 xs:w-64 sm:w-80 md:w-[350px] lg:w-[380px] h-[300px] xs:h-[360px] sm:h-[440px] md:h-[480px] flex items-center justify-center animate-revolve-tub transform-gpu group cursor-grab active:cursor-grabbing">
           
           {/* Transparent Cutout PNG of Whey Protein */}
           <img 
@@ -68,41 +68,41 @@ export default function HeroWheyScanner() {
         </div>
 
         {/* 3D Floating AR Bounding Tags */}
-        <div className="absolute right-1 sm:-right-4 top-8 sm:top-12 space-y-1.5 sm:space-y-2.5 z-20 pointer-events-none">
-          <div className="glass-island px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-rose-500/60 text-rose-200 text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl animate-pulse">
+        <div className="absolute right-1 sm:-right-2 top-8 sm:top-12 space-y-1.5 sm:space-y-2.5 z-20 pointer-events-none">
+          <div className="glass-island px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-rose-500/60 text-rose-200 text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl animate-pulse">
             <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-rose-500 shrink-0"></span>
             <span>L-GLYCINE: +6.2g SPIKE</span>
           </div>
 
-          <div className="glass-island px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-rose-500/60 text-rose-200 text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl">
+          <div className="glass-island px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-rose-500/60 text-rose-200 text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl">
             <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-rose-500 shrink-0"></span>
-            <span>MALTODEXTRIN: 10g SUGAR</span>
+            <span>MALTODEXTRIN: 10g</span>
           </div>
 
-          <div className="glass-island px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-amber-500/60 text-amber-200 text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl">
+          <div className="glass-island px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-amber-500/60 text-amber-200 text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl">
             <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-amber-500 shrink-0"></span>
             <span>SUCRALOSE: HIGH GI</span>
           </div>
         </div>
 
         {/* Left Side Floating Intact Protein Beacon */}
-        <div className="absolute left-1 sm:-left-4 bottom-14 sm:bottom-16 z-20 pointer-events-none">
-          <div className="glass-island px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-rose-500/50 text-white text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl">
+        <div className="absolute left-1 sm:-left-2 bottom-12 sm:bottom-16 z-20 pointer-events-none">
+          <div className="glass-island px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border border-rose-500/50 text-white text-[8px] sm:text-[10px] font-mono font-bold flex items-center gap-1.5 sm:gap-2 shadow-xl">
             <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-rose-400 animate-ping shrink-0"></span>
             <span>INTACT PROTEIN: 41.7%</span>
           </div>
         </div>
 
         {/* Floating Holographic Score Dial (Bottom Corner) */}
-        <div className="absolute bottom-0 right-1 sm:right-0 z-30 glass-island p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl border border-rose-500/40 shadow-2xl flex items-center gap-2.5 sm:gap-4">
+        <div className="absolute bottom-0 right-1 sm:right-0 z-30 glass-island p-2 sm:p-3.5 rounded-2xl sm:rounded-3xl border border-rose-500/40 shadow-2xl flex items-center gap-2 sm:gap-4">
           <div>
-            <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest block font-syne">
+            <span className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest block font-josefin">
               LAB PURITY SCORE
             </span>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl sm:text-3xl font-black font-mono text-rose-500">32</span>
-              <span className="text-[10px] sm:text-xs text-slate-400">/ 100</span>
-              <span className="text-[8px] sm:text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 uppercase ml-1">
+              <span className="text-xl sm:text-3xl font-black font-mono text-rose-500">32</span>
+              <span className="text-[9px] sm:text-xs text-slate-400">/ 100</span>
+              <span className="text-[7px] sm:text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 uppercase ml-1">
                 FAIL
               </span>
             </div>
