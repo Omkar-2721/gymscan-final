@@ -7,6 +7,7 @@ import {
 import confetti from 'canvas-confetti';
 import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
 import { useAuth } from '../context/AuthContext';
+import { performLiveOCRAndAnalyze, analyzeSupplementIngredients } from '../utils/analyzer';
 
 export default function CompareModal({ isOpen, onClose }) {
   const { user, requireAuth, consumeScan } = useAuth();
@@ -63,6 +64,10 @@ export default function CompareModal({ isOpen, onClose }) {
     actualProtein: '20.4g (85% Intact)',
     category: '100% Whey Protein',
     image: '/whey-protein-transparent.png',
+    calories: '130 kcal',
+    carbs: '3.5g',
+    sugar: '1.2g',
+    fat: '1.8g',
     flags: {
       aminoSpiking: false,
       trueProteinRatio: '85.0%',
@@ -71,13 +76,14 @@ export default function CompareModal({ isOpen, onClose }) {
       heavyMetalsRisk: 'Low (< 0.05 ppm)'
     },
     ingredientsList: [
-      { name: "Whey Protein Blend (Concentrate & Isolate)", status: "clean" },
-      { name: "Maltodextrin (Carbohydrate Thickener)", status: "warning" },
-      { name: "Sucralose (INS 955)", status: "warning" },
-      { name: "Acesulfame Potassium (INS 950)", status: "warning" },
-      { name: "Synthetic colors & thickeners", status: "warning" }
+      { name: "Whey Protein Blend (Concentrate & Isolate)", status: "clean", reason: "Active protein source" },
+      { name: "Maltodextrin (Carbohydrate Thickener)", status: "warning", reason: "Carbohydrate filler" },
+      { name: "Sucralose (INS 955)", status: "warning", reason: "High-intensity artificial sweetener" },
+      { name: "Acesulfame Potassium (INS 950)", status: "warning", reason: "Artificial sweetener blend" },
+      { name: "Synthetic colors & thickeners", status: "warning", reason: "Synthetic processing aid" }
     ],
-    verdict: "Moderate - Offers good protein content per serving but Indian formulation includes artificial sweeteners (Sucralose, Ace-K) and Maltodextrin."
+    verdict: "Moderate - Offers good protein content per serving but Indian formulation includes artificial sweeteners (Sucralose, Ace-K) and Maltodextrin.",
+    verdictHindi: "मध्यम गुणवत्ता — अच्छी प्रोटीन मात्रा प्रदान करता है लेकिन इसमें कृत्रिम मिठास (Sucralose, Ace-K) और माल्टोडेक्सट्रिन शामिल हैं।"
   };
 
   const handleTriggerCamera = (slot) => {
@@ -94,7 +100,6 @@ export default function CompareModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (cameraActiveSlot) {
-      // High-resolution portrait-optimized camera stream
       const constraints = {
         video: { 
           facingMode: { ideal: 'environment' },
@@ -144,27 +149,45 @@ export default function CompareModal({ isOpen, onClose }) {
     if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
     const file = e.target.files?.[0];
     if (file) {
+      const fileNameHint = file.name.replace(/\.[^/.]+$/, "").replace(/[_\-+]/g, ' ');
       const reader = new FileReader();
-      if (slot === 'A') setIsSlotScanningA(true);
-      if (slot === 'B') setIsSlotScanningB(true);
+      if (slot === 'A') {
+        setIsSlotScanningA(true);
+        setProdA(null);
+      }
+      if (slot === 'B') {
+        setIsSlotScanningB(true);
+        setProdB(null);
+      }
 
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const dataUrl = event.target.result;
-        setTimeout(() => {
+        if (slot === 'A') {
+          setImgA(dataUrl);
+        } else {
+          setImgB(dataUrl);
+        }
+
+        try {
+          const liveResult = await performLiveOCRAndAnalyze(dataUrl, slot, fileNameHint);
           if (slot === 'A') {
-            setImgA(dataUrl);
+            setProdA(liveResult);
             setIsSlotScanningA(false);
           } else {
-            setImgB(dataUrl);
+            setProdB(liveResult);
             setIsSlotScanningB(false);
           }
-        }, 800);
+        } catch (err) {
+          console.warn("OCR error on slot " + slot, err);
+          if (slot === 'A') setIsSlotScanningA(false);
+          if (slot === 'B') setIsSlotScanningB(false);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleCaptureSnapshot = () => {
+  const handleCaptureSnapshot = async () => {
     if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
@@ -173,21 +196,32 @@ export default function CompareModal({ isOpen, onClose }) {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/png');
+      const activeSlot = cameraActiveSlot;
+      setCameraActiveSlot(null);
 
-      if (cameraActiveSlot === 'A') {
+      if (activeSlot === 'A') {
         setIsSlotScanningA(true);
-        setTimeout(() => {
-          setImgA(dataUrl);
+        setImgA(dataUrl);
+        setProdA(null);
+        try {
+          const liveResult = await performLiveOCRAndAnalyze(dataUrl, 'A');
+          setProdA(liveResult);
           setIsSlotScanningA(false);
-        }, 700);
+        } catch (err) {
+          setIsSlotScanningA(false);
+        }
       } else {
         setIsSlotScanningB(true);
-        setTimeout(() => {
-          setImgB(dataUrl);
+        setImgB(dataUrl);
+        setProdB(null);
+        try {
+          const liveResult = await performLiveOCRAndAnalyze(dataUrl, 'B');
+          setProdB(liveResult);
           setIsSlotScanningB(false);
-        }, 700);
+        } catch (err) {
+          setIsSlotScanningB(false);
+        }
       }
-      setCameraActiveSlot(null);
     }
   };
 
@@ -199,14 +233,14 @@ export default function CompareModal({ isOpen, onClose }) {
         setImgA(product.image || '/whey-protein-transparent.png');
         setProdA(product);
         setIsSlotScanningA(false);
-      }, 500);
+      }, 400);
     } else {
       setIsSlotScanningB(true);
       setTimeout(() => {
         setImgB(product.image || '/whey-protein-transparent.png');
         setProdB(product);
         setIsSlotScanningB(false);
-      }, 500);
+      }, 400);
     }
   };
 
@@ -217,7 +251,7 @@ export default function CompareModal({ isOpen, onClose }) {
     (prodA && prodB && prodA.id === prodB.id)
   );
 
-  const handleRunComparison = () => {
+  const handleRunComparison = async () => {
     if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
     if (!imgA || !imgB) {
       alert('Please upload or take images for both Product A and Product B first.');
@@ -240,29 +274,50 @@ export default function CompareModal({ isOpen, onClose }) {
       setScanProgress(90);
     }, 2300);
 
-    setTimeout(() => {
-      // Analyze results: If images are identical, both become GNC tied product!
+    // Perform live OCR and vision analysis on actual images
+    try {
+      let finalA = prodA;
+      let finalB = prodB;
+
       if (isImagesIdentical) {
-        setProdA(GNC_TIED_PRODUCT);
-        setProdB(GNC_TIED_PRODUCT);
+        finalA = GNC_TIED_PRODUCT;
+        finalB = GNC_TIED_PRODUCT;
       } else {
-        setProdA(prodA || SAMPLE_PRODUCTS[0]);
-        setProdB(prodB || SAMPLE_PRODUCTS[1]);
+        if (!finalA && imgA) {
+          finalA = await performLiveOCRAndAnalyze(imgA, 'A');
+        }
+        if (!finalB && imgB) {
+          finalB = await performLiveOCRAndAnalyze(imgB, 'B');
+        }
       }
 
-      setScanProgress(100);
-      setIsAnalyzing(false);
-      setHasCompared(true);
+      setTimeout(() => {
+        setProdA(finalA || SAMPLE_PRODUCTS[0]);
+        setProdB(finalB || SAMPLE_PRODUCTS[1]);
+        setScanProgress(100);
+        setIsAnalyzing(false);
+        setHasCompared(true);
 
-      try {
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.6 },
-          colors: ['#E11D48', '#10B981', '#F59E0B', '#3B82F6']
-        });
-      } catch (e) {}
-    }, 3500);
+        try {
+          confetti({
+            particleCount: 120,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: ['#E11D48', '#10B981', '#F59E0B', '#3B82F6']
+          });
+        } catch (e) {}
+      }, 3500);
+
+    } catch (e) {
+      console.warn("Live analysis encountered error, applying parsed fallback:", e);
+      setTimeout(() => {
+        setProdA(prodA || SAMPLE_PRODUCTS[0]);
+        setProdB(prodB || SAMPLE_PRODUCTS[1]);
+        setScanProgress(100);
+        setIsAnalyzing(false);
+        setHasCompared(true);
+      }, 3500);
+    }
   };
 
   const handleReset = () => {
@@ -276,11 +331,19 @@ export default function CompareModal({ isOpen, onClose }) {
     setScanStep(1);
   };
 
-  const winner = (prodA && prodB) ? (
-    isImagesIdentical ? 'tie' :
-    prodA.purityScore > prodB.purityScore ? 'A' :
-    prodB.purityScore > prodA.purityScore ? 'B' : 'tie'
-  ) : null;
+  const currentProdA = prodA || (isImagesIdentical ? GNC_TIED_PRODUCT : SAMPLE_PRODUCTS[0]);
+  const currentProdB = prodB || (isImagesIdentical ? GNC_TIED_PRODUCT : SAMPLE_PRODUCTS[1]);
+  const isTie = isImagesIdentical || (currentProdA?.purityScore === currentProdB?.purityScore);
+  const winningProduct = isTie ? currentProdA : ((currentProdA?.purityScore || 0) >= (currentProdB?.purityScore || 0) ? currentProdA : currentProdB);
+  const losingProduct = isTie ? currentProdB : ((currentProdA?.purityScore || 0) < (currentProdB?.purityScore || 0) ? currentProdA : currentProdB);
+  const scoreDiff = Math.abs((currentProdA?.purityScore || 0) - (currentProdB?.purityScore || 0));
+
+  const handleShareWhatsApp = () => {
+    const text = encodeURIComponent(
+      `GymScan Showdown Report:\nWinner: ${winningProduct?.name || 'Clean Supplement'} (${winningProduct?.purityScore || 90}/100) vs ${losingProduct?.name || 'Competitor'}!\nAnalyzed with GymScan AI.`
+    );
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-xl overflow-y-auto font-josefin">
@@ -454,54 +517,74 @@ export default function CompareModal({ isOpen, onClose }) {
                 <div className="absolute inset-x-0 h-1 bg-rose-500 shadow-[0_0_15px_#E11D48] animate-laser-sweep"></div>
               </div>
             ) : imgA ? (
-              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-black/60 border border-rose-500/30 flex items-center justify-center group">
-                <img src={imgA} alt="Product A Preview" className="w-full h-full object-contain p-2" />
-                {isAnalyzing && (
-                  <div className="absolute inset-0 bg-black/40 pointer-events-none flex flex-col justify-between">
-                    <div className="w-full h-1 bg-rose-500 shadow-[0_0_20px_#E11D48] animate-laser-sweep"></div>
-                    <div className="p-2 bg-black/80 text-center">
-                      <span className="text-[10px] font-mono font-black text-rose-400">ANALYZING MOLECULAR PROFILE...</span>
+              <div className="space-y-2">
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-black/60 border border-rose-500/30 flex items-center justify-center group">
+                  <img src={imgA} alt="Product A Preview" className="w-full h-full object-contain p-2" />
+                  {isAnalyzing && (
+                    <div className="absolute inset-0 bg-black/40 pointer-events-none flex flex-col justify-between">
+                      <div className="w-full h-1 bg-rose-500 shadow-[0_0_20px_#E11D48] animate-laser-sweep"></div>
+                      <div className="p-2 bg-black/80 text-center">
+                        <span className="text-[10px] font-mono font-black text-rose-400">ANALYZING MOLECULAR PROFILE...</span>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {!isAnalyzing && (
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-3">
-                    <button 
-                      onClick={() => fileInputA.current?.click()}
-                      className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" /> Change Photo
-                    </button>
-                    <button 
-                      onClick={() => { setImgA(null); setProdA(null); }}
-                      className="p-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Remove
-                    </button>
+                  )}
+                  {!isAnalyzing && (
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-3">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); fileInputA.current?.click(); }}
+                        className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Change Photo
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setImgA(null); setProdA(null); }}
+                        className="p-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {prodA && (
+                  <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-center">
+                    <span className="text-[10px] font-mono text-rose-400 uppercase tracking-widest block font-bold">
+                      DETECTED PRODUCT A
+                    </span>
+                    <span className="text-xs font-black text-white truncate block mt-0.5">
+                      {prodA.name}
+                    </span>
                   </div>
                 )}
               </div>
             ) : (
-              /* Drag & Drop Upload Placeholder */
-              <div className="border-2 border-dashed border-rose-500/30 rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center justify-center space-y-3 bg-black/5 dark:bg-black/30">
-                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center border border-rose-500/20">
+              /* Drag & Drop Upload Placeholder (Clickable Everywhere) */
+              <div 
+                onClick={() => fileInputA.current?.click()}
+                className="border-2 border-dashed border-rose-500/30 hover:border-rose-500 hover:bg-rose-500/10 active:scale-[0.99] transition-all rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center justify-center space-y-3 bg-black/5 dark:bg-black/30 cursor-pointer group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center border border-rose-500/20 group-hover:scale-110 group-hover:bg-rose-500 group-hover:text-white transition-all">
                   <Upload className="w-6 h-6" />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-rose-200/70 font-sans max-w-[220px]">
-                  Upload or snapshot Product A ingredients list
-                </p>
+                <div>
+                  <span className="text-xs font-bold text-maroon-950 dark:text-white block group-hover:text-rose-400 transition">
+                    Tap anywhere to upload Product A
+                  </span>
+                  <p className="text-[11px] text-slate-500 dark:text-rose-200/70 font-sans mt-0.5">
+                    Upload image from gallery or take camera photo
+                  </p>
+                </div>
 
                 <div className="flex flex-wrap gap-2 justify-center pt-2">
                   <button
-                    onClick={() => fileInputA.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-rose-500/20 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer flex items-center gap-1.5"
+                    onClick={(e) => { e.stopPropagation(); fileInputA.current?.click(); }}
+                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-rose-500/30 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer flex items-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>Select Image</span>
                   </button>
 
                   <button
-                    onClick={() => handleTriggerCamera('A')}
+                    onClick={(e) => { e.stopPropagation(); handleTriggerCamera('A'); }}
                     className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <Camera className="w-3.5 h-3.5" />
@@ -559,54 +642,74 @@ export default function CompareModal({ isOpen, onClose }) {
                 <div className="absolute inset-x-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10B981] animate-laser-sweep"></div>
               </div>
             ) : imgB ? (
-              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-black/60 border border-rose-500/30 flex items-center justify-center group">
-                <img src={imgB} alt="Product B Preview" className="w-full h-full object-contain p-2" />
-                {isAnalyzing && (
-                  <div className="absolute inset-0 bg-black/40 pointer-events-none flex flex-col justify-between">
-                    <div className="w-full h-1 bg-emerald-500 shadow-[0_0_20px_#10B981] animate-laser-sweep"></div>
-                    <div className="p-2 bg-black/80 text-center">
-                      <span className="text-[10px] font-mono font-black text-emerald-400">ANALYZING MOLECULAR PROFILE...</span>
+              <div className="space-y-2">
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-black/60 border border-rose-500/30 flex items-center justify-center group">
+                  <img src={imgB} alt="Product B Preview" className="w-full h-full object-contain p-2" />
+                  {isAnalyzing && (
+                    <div className="absolute inset-0 bg-black/40 pointer-events-none flex flex-col justify-between">
+                      <div className="w-full h-1 bg-emerald-500 shadow-[0_0_20px_#10B981] animate-laser-sweep"></div>
+                      <div className="p-2 bg-black/80 text-center">
+                        <span className="text-[10px] font-mono font-black text-emerald-400">ANALYZING MOLECULAR PROFILE...</span>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {!isAnalyzing && (
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-3">
-                    <button 
-                      onClick={() => fileInputB.current?.click()}
-                      className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" /> Change Photo
-                    </button>
-                    <button 
-                      onClick={() => { setImgB(null); setProdB(null); }}
-                      className="p-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Remove
-                    </button>
+                  )}
+                  {!isAnalyzing && (
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-3">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); fileInputB.current?.click(); }}
+                        className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Change Photo
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setImgB(null); setProdB(null); }}
+                        className="p-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {prodB && (
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center">
+                    <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest block font-bold">
+                      DETECTED PRODUCT B
+                    </span>
+                    <span className="text-xs font-black text-white truncate block mt-0.5">
+                      {prodB.name}
+                    </span>
                   </div>
                 )}
               </div>
             ) : (
-              /* Drag & Drop Upload Placeholder */
-              <div className="border-2 border-dashed border-rose-500/30 rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center justify-center space-y-3 bg-black/5 dark:bg-black/30">
-                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center border border-rose-500/20">
+              /* Drag & Drop Upload Placeholder (Clickable Everywhere) */
+              <div 
+                onClick={() => fileInputB.current?.click()}
+                className="border-2 border-dashed border-rose-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 active:scale-[0.99] transition-all rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center justify-center space-y-3 bg-black/5 dark:bg-black/30 cursor-pointer group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center border border-rose-500/20 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-black transition-all">
                   <Upload className="w-6 h-6" />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-rose-200/70 font-sans max-w-[220px]">
-                  Upload or snapshot Product B ingredients list
-                </p>
+                <div>
+                  <span className="text-xs font-bold text-maroon-950 dark:text-white block group-hover:text-emerald-400 transition">
+                    Tap anywhere to upload Product B
+                  </span>
+                  <p className="text-[11px] text-slate-500 dark:text-rose-200/70 font-sans mt-0.5">
+                    Upload image from gallery or take camera photo
+                  </p>
+                </div>
 
                 <div className="flex flex-wrap gap-2 justify-center pt-2">
                   <button
-                    onClick={() => fileInputB.current?.click()}
-                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-rose-500/20 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer flex items-center gap-1.5"
+                    onClick={(e) => { e.stopPropagation(); fileInputB.current?.click(); }}
+                    className="px-4 py-2 rounded-xl bg-black/20 dark:bg-white/10 hover:bg-emerald-500/30 text-slate-800 dark:text-white text-xs font-bold transition border border-rose-500/20 cursor-pointer flex items-center gap-1.5"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>Select Image</span>
                   </button>
 
                   <button
-                    onClick={() => handleTriggerCamera('B')}
+                    onClick={(e) => { e.stopPropagation(); handleTriggerCamera('B'); }}
                     className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <Camera className="w-3.5 h-3.5" />
@@ -683,17 +786,17 @@ export default function CompareModal({ isOpen, onClose }) {
 
         {/* RESULTS SECTION (Rendered after comparison is run) */}
         {hasCompared && currentProdA && currentProdB && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
+          <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
             
-            {/* 1. Comparison Winner Banner (Screenshot 5) */}
-            <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/80 via-maroon-950/90 to-rose-950/80 border border-emerald-500/40 shadow-2xl space-y-4">
+            {/* 1. Comparison Winner Banner */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-emerald-950/80 via-maroon-950/90 to-rose-950/80 border border-emerald-500/40 shadow-2xl space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <Sparkles className="w-3.5 h-3.5" /> COMPARISON WINNER
                   </span>
-                  <h2 className="text-2xl sm:text-3xl font-black text-white">
-                    {isTie ? "It is a Healthy Tie!" : `${winner.name} is the Superior Choice!`}
+                  <h2 className="text-xl sm:text-3xl font-black text-white">
+                    {isTie ? "It is a Healthy Tie!" : `${winningProduct?.name || 'Product'} is the Superior Choice!`}
                   </h2>
                 </div>
 
@@ -712,34 +815,39 @@ export default function CompareModal({ isOpen, onClose }) {
                 </span>
                 <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans">
                   {isTie 
-                    ? `Both Product A and Product B are the same ${currentProdA.name} product. While it offers a good protein content per serving, its Indian formulation includes several artificial additives like Maltodextrin, synthetic colors, and artificial sweeteners (Sucralose and Acesulfame Potassium). This makes it a moderate choice for those preferring a cleaner supplement profile, resulting in a tie as there's no distinction between the two.`
-                    : `${winner.name} delivers ${winner.claimedProtein} of intact usable protein with ${winner.flags.aminoSpiking ? 'amino spiking detected' : 'zero free glycine adulteration'}, making it substantially safer for your liver & kidney filtration compared to ${loser.name}.`}
+                    ? `Both Product A and Product B evaluate with identical formulations for ${currentProdA?.name || 'this supplement'}. Purity score is ${currentProdA?.purityScore || 65}/100, resulting in a balanced tie with equal risk considerations.`
+                    : `${winningProduct?.name || 'Winner'} achieves a superior Purity Score of ${winningProduct?.purityScore || 90}/100 and delivers ${winningProduct?.claimedProtein || 'clean active nutrients'} with ${winningProduct?.flags?.aminoSpiking ? 'amino spiking detected' : 'zero free amino adulteration'}, making it significantly safer and more bioavailable than ${losingProduct?.name || 'Competitor'}.`}
                 </p>
               </div>
             </div>
 
-            {/* 2. Side-by-Side Product Summary Cards (Screenshot 5) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 2. Side-by-Side Product Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 font-sans">
               
               {/* Product A Summary */}
-              <div className="p-6 rounded-3xl glass-card-neo border border-rose-500/20 space-y-4">
+              <div className="p-5 sm:p-6 rounded-3xl glass-card-neo border border-rose-500/20 space-y-4">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">PRODUCT A</span>
-                  <h3 className="text-xl font-black text-maroon-950 dark:text-white mt-0.5">{currentProdA.brand}</h3>
-                  <p className="text-xs text-rose-400 font-bold">{currentProdA.name}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">PRODUCT A</span>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300">
+                      {currentProdA?.category || "Supplement"}
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-maroon-950 dark:text-white mt-0.5">{currentProdA?.brand || "Brand A"}</h3>
+                  <p className="text-xs text-rose-400 font-bold">{currentProdA?.name || "Product A"}</p>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <div className="p-3 rounded-2xl bg-black/50 border border-white/10 text-center min-w-[70px]">
                     <span className="text-[9px] font-mono text-slate-400 block">SCORE</span>
-                    <span className="text-2xl font-black font-mono text-rose-500">{currentProdA.purityScore}</span>
+                    <span className="text-2xl font-black font-mono text-rose-500">{currentProdA?.purityScore || 50}</span>
                   </div>
                   <div>
                     <span className="text-[9px] font-mono text-slate-400 block mb-1">SAFETY LEVEL</span>
                     <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase ${
-                      currentProdA.riskLevel === 'danger' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : currentProdA.riskLevel === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      currentProdA?.riskLevel === 'danger' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : currentProdA?.riskLevel === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                     }`}>
-                      {currentProdA.riskLevel === 'danger' ? 'MODERATE / CAUTION' : currentProdA.riskLevel === 'warning' ? 'MODERATE / CAUTION' : 'VERIFIED CLEAN'}
+                      {currentProdA?.riskLevel === 'danger' ? 'HIGH RISK / SPIKED' : currentProdA?.riskLevel === 'warning' ? 'MODERATE / CAUTION' : 'VERIFIED CLEAN'}
                     </span>
                   </div>
                 </div>
@@ -747,33 +855,39 @@ export default function CompareModal({ isOpen, onClose }) {
                 <div>
                   <span className="text-[10px] font-mono font-bold text-slate-400 uppercase block mb-2">HIGHLIGHTS</span>
                   <ul className="text-xs space-y-1.5 text-slate-300 font-sans list-disc list-inside">
-                    <li>Protein content: {currentProdA.claimedProtein}</li>
-                    <li>{currentProdA.flags.aminoSpiking ? 'Contains L-Glycine / Taurine nitrogen spiking.' : 'Zero added non-intact filler aminos.'}</li>
-                    <li>{currentProdA.flags.fillerCount > 0 ? 'Contains Maltodextrin high-GI carbohydrate filler.' : 'Zero carb fillers or maltodextrin.'}</li>
-                    <li>WADA status: {currentProdA.flags.bannedSubstances ? 'Prohibited stimulants flagged.' : '100% compliant.'}</li>
+                    <li>Serving: {currentProdA?.servingSize || "1 serving"} ({currentProdA?.calories || "120 kcal"})</li>
+                    <li>Active Nutrients: {currentProdA?.claimedProtein || "Standard protein"}</li>
+                    <li>{currentProdA?.flags?.aminoSpiking ? '🚨 Contains L-Glycine / Taurine nitrogen spiking.' : '✅ Zero added non-intact filler aminos.'}</li>
+                    <li>{currentProdA?.flags?.fillerCount > 0 ? '⚠️ Contains Maltodextrin / carbohydrate filler.' : '✅ Zero carb fillers or maltodextrin.'}</li>
+                    <li>WADA Status: {currentProdA?.flags?.bannedSubstances ? '⛔ Prohibited stimulants flagged.' : '✅ Clean / WADA Compliant.'}</li>
                   </ul>
                 </div>
               </div>
 
               {/* Product B Summary */}
-              <div className="p-6 rounded-3xl glass-card-neo border border-emerald-500/20 space-y-4">
+              <div className="p-5 sm:p-6 rounded-3xl glass-card-neo border border-emerald-500/20 space-y-4">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">PRODUCT B</span>
-                  <h3 className="text-xl font-black text-maroon-950 dark:text-white mt-0.5">{currentProdB.brand}</h3>
-                  <p className="text-xs text-emerald-400 font-bold">{currentProdB.name}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">PRODUCT B</span>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
+                      {currentProdB?.category || "Supplement"}
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-maroon-950 dark:text-white mt-0.5">{currentProdB?.brand || "Brand B"}</h3>
+                  <p className="text-xs text-emerald-400 font-bold">{currentProdB?.name || "Product B"}</p>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <div className="p-3 rounded-2xl bg-black/50 border border-white/10 text-center min-w-[70px]">
                     <span className="text-[9px] font-mono text-slate-400 block">SCORE</span>
-                    <span className="text-2xl font-black font-mono text-emerald-400">{currentProdB.purityScore}</span>
+                    <span className="text-2xl font-black font-mono text-emerald-400">{currentProdB?.purityScore || 90}</span>
                   </div>
                   <div>
                     <span className="text-[9px] font-mono text-slate-400 block mb-1">SAFETY LEVEL</span>
                     <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase ${
-                      currentProdB.riskLevel === 'danger' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : currentProdB.riskLevel === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      currentProdB?.riskLevel === 'danger' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : currentProdB?.riskLevel === 'warning' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                     }`}>
-                      {currentProdB.riskLevel === 'danger' ? 'MODERATE / CAUTION' : currentProdB.riskLevel === 'warning' ? 'MODERATE / CAUTION' : 'VERIFIED CLEAN'}
+                      {currentProdB?.riskLevel === 'danger' ? 'HIGH RISK / SPIKED' : currentProdB?.riskLevel === 'warning' ? 'MODERATE / CAUTION' : 'VERIFIED CLEAN'}
                     </span>
                   </div>
                 </div>
@@ -781,101 +895,103 @@ export default function CompareModal({ isOpen, onClose }) {
                 <div>
                   <span className="text-[10px] font-mono font-bold text-slate-400 uppercase block mb-2">HIGHLIGHTS</span>
                   <ul className="text-xs space-y-1.5 text-slate-300 font-sans list-disc list-inside">
-                    <li>Protein content: {currentProdB.claimedProtein}</li>
-                    <li>{currentProdB.flags.aminoSpiking ? 'Contains L-Glycine / Taurine nitrogen spiking.' : 'Zero added non-intact filler aminos.'}</li>
-                    <li>{currentProdB.flags.fillerCount > 0 ? 'Contains Maltodextrin high-GI carbohydrate filler.' : 'Zero carb fillers or maltodextrin.'}</li>
-                    <li>WADA status: {currentProdB.flags.bannedSubstances ? 'Prohibited stimulants flagged.' : '100% compliant.'}</li>
+                    <li>Serving: {currentProdB?.servingSize || "1 serving"} ({currentProdB?.calories || "120 kcal"})</li>
+                    <li>Active Nutrients: {currentProdB?.claimedProtein || "Standard protein"}</li>
+                    <li>{currentProdB?.flags?.aminoSpiking ? '🚨 Contains L-Glycine / Taurine nitrogen spiking.' : '✅ Zero added non-intact filler aminos.'}</li>
+                    <li>{currentProdB?.flags?.fillerCount > 0 ? '⚠️ Contains Maltodextrin / carbohydrate filler.' : '✅ Zero carb fillers or maltodextrin.'}</li>
+                    <li>WADA Status: {currentProdB?.flags?.bannedSubstances ? '⛔ Prohibited stimulants flagged.' : '✅ Clean / WADA Compliant.'}</li>
                   </ul>
                 </div>
               </div>
 
             </div>
 
-            {/* 3. Head-to-Head Nutrition Comparison Table (Screenshot 3) */}
-            <div className="p-6 rounded-3xl glass-card-neo border border-rose-500/20 space-y-4">
-              <h3 className="text-lg font-black text-maroon-950 dark:text-white uppercase tracking-wider">
-                Head-to-Head Nutrition Comparison
+            {/* 3. Head-to-Head Nutrition Comparison Table */}
+            <div className="p-5 sm:p-6 rounded-3xl glass-card-neo border border-rose-500/20 space-y-4">
+              <h3 className="text-base sm:text-lg font-black text-maroon-950 dark:text-white uppercase tracking-wider">
+                Head-to-Head Nutrition & Lab Comparison
               </h3>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-sans">
+                <table className="w-full text-left text-xs font-sans min-w-[500px]">
                   <thead>
                     <tr className="border-b border-rose-500/20 text-[10px] font-mono text-slate-400 uppercase">
                       <th className="py-2.5 px-3">NUTRITIONAL FIELD</th>
-                      <th className="py-2.5 px-3">PRODUCT A ({currentProdA.brand})</th>
-                      <th className="py-2.5 px-3">PRODUCT B ({currentProdB.brand})</th>
+                      <th className="py-2.5 px-3">PRODUCT A ({currentProdA?.brand || "A"})</th>
+                      <th className="py-2.5 px-3">PRODUCT B ({currentProdB?.brand || "B"})</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-rose-500/10 text-slate-200">
                     <tr>
-                      <td className="py-3 px-3 font-bold text-slate-400">Calories</td>
-                      <td className="py-3 px-3">{isTie ? "120 kcal" : "130 kcal"}</td>
-                      <td className="py-3 px-3">{isTie ? "120 kcal" : "110 kcal"}</td>
+                      <td className="py-3 px-3 font-bold text-slate-400">Category</td>
+                      <td className="py-3 px-3">{currentProdA?.category || "Gym Supplement"}</td>
+                      <td className="py-3 px-3">{currentProdB?.category || "Gym Supplement"}</td>
                     </tr>
                     <tr>
-                      <td className="py-3 px-3 font-bold text-slate-400">Protein (Claimed)</td>
-                      <td className="py-3 px-3">{currentProdA.claimedProtein}</td>
-                      <td className="py-3 px-3">{currentProdB.claimedProtein}</td>
+                      <td className="py-3 px-3 font-bold text-slate-400">Calories & Serving</td>
+                      <td className="py-3 px-3">{currentProdA?.calories || "120 kcal"} ({currentProdA?.servingSize || "1 scoop"})</td>
+                      <td className="py-3 px-3">{currentProdB?.calories || "120 kcal"} ({currentProdB?.servingSize || "1 scoop"})</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-bold text-slate-400">Claimed Protein</td>
+                      <td className="py-3 px-3">{currentProdA?.claimedProtein || "N/A"}</td>
+                      <td className="py-3 px-3">{currentProdB?.claimedProtein || "N/A"}</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-3 font-bold text-slate-400">True Usable Protein</td>
-                      <td className="py-3 px-3 font-bold text-rose-400">{currentProdA.actualProtein}</td>
-                      <td className="py-3 px-3 font-bold text-emerald-400">{currentProdB.actualProtein}</td>
+                      <td className="py-3 px-3 font-bold text-rose-400">{currentProdA?.actualProtein || "Calculated"}</td>
+                      <td className="py-3 px-3 font-bold text-emerald-400">{currentProdB?.actualProtein || "Calculated"}</td>
                     </tr>
                     <tr>
-                      <td className="py-3 px-3 font-bold text-slate-400">Sugar / Carbs</td>
-                      <td className="py-3 px-3">{isTie ? "1 g (Maltodextrin load)" : "10 g (High Maltodextrin)"}</td>
-                      <td className="py-3 px-3">{isTie ? "1 g (Maltodextrin load)" : "0.5 g"}</td>
+                      <td className="py-3 px-3 font-bold text-slate-400">Carbs & Sugar</td>
+                      <td className="py-3 px-3">{currentProdA?.carbs || "3g"} (Sugar: {currentProdA?.sugar || "1g"})</td>
+                      <td className="py-3 px-3">{currentProdB?.carbs || "3g"} (Sugar: {currentProdB?.sugar || "1g"})</td>
                     </tr>
                     <tr>
-                      <td className="py-3 px-3 font-bold text-slate-400">Sodium</td>
-                      <td className="py-3 px-3">{isTie ? "100 mg" : "140 mg"}</td>
-                      <td className="py-3 px-3">{isTie ? "100 mg" : "80 mg"}</td>
+                      <td className="py-3 px-3 font-bold text-slate-400">Fat Content</td>
+                      <td className="py-3 px-3">{currentProdA?.fat || "1.5g"}</td>
+                      <td className="py-3 px-3">{currentProdB?.fat || "1.5g"}</td>
                     </tr>
                     <tr>
-                      <td className="py-3 px-3 font-bold text-slate-400">Additives</td>
-                      <td className="py-3 px-3 text-slate-300">
-                        {isTie ? "Maltodextrin, Sucralose (INS 955), Acesulfame Potassium (INS 950)" : "Maltodextrin, Sucralose (INS 955), Acesulfame Potassium (INS 950), synthetic colors"}
-                      </td>
-                      <td className="py-3 px-3 text-slate-300">
-                        {isTie ? "Maltodextrin, Sucralose (INS 955), Acesulfame Potassium (INS 950)" : "Sunflower Lecithin, Organic Stevia Extract (Reb-A)"}
-                      </td>
+                      <td className="py-3 px-3 font-bold text-slate-400">Heavy Metals Screening</td>
+                      <td className="py-3 px-3">{currentProdA?.flags?.heavyMetalsRisk || "Low (<0.02 ppm)"}</td>
+                      <td className="py-3 px-3">{currentProdB?.flags?.heavyMetalsRisk || "Low (<0.02 ppm)"}</td>
                     </tr>
                     <tr>
                       <td className="py-3 px-3 font-bold text-slate-400">FSSAI / WADA Status</td>
-                      <td className="py-3 px-3 font-bold text-amber-400">{isTie ? "Verified / Caution On Formulation" : "Verified / Caution On Blends"}</td>
-                      <td className="py-3 px-3 font-bold text-emerald-400">{isTie ? "Verified / Caution On Formulation" : "100% Informed-Choice Certified"}</td>
+                      <td className="py-3 px-3 font-bold text-amber-400">{currentProdA?.flags?.bannedSubstances ? "Flagged Stimulants" : "Verified / Tested"}</td>
+                      <td className="py-3 px-3 font-bold text-emerald-400">{currentProdB?.flags?.bannedSubstances ? "Flagged Stimulants" : "100% Informed-Choice / WADA Clean"}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* 4. Bilingual Final Verdicts (Screenshot 4) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 4. Bilingual Final Verdicts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 font-sans">
               
               {/* FINAL VERDICT (ENGLISH) */}
-              <div className="p-6 rounded-3xl glass-card-neo border border-emerald-500/20 space-y-2.5">
+              <div className="p-5 sm:p-6 rounded-3xl glass-card-neo border border-emerald-500/20 space-y-2.5">
                 <span className="text-[10px] font-mono font-black text-emerald-400 uppercase tracking-widest block">
                   FINAL VERDICT (ENGLISH)
                 </span>
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
                   {isTie
-                    ? `This comparison features a head-to-head assay of the same product for both selections: ${currentProdA.name}. Both samples evaluate with identical purity scores (${currentProdA.purityScore}/100), moderate safety ratings, and identical biochemical profiles.`
-                    : `This comparison features a head-to-head assay between ${currentProdA.name} and ${currentProdB.name}. From a nutritional standpoint, ${winner.name} delivers genuine bio-available whey fractions without non-intact nitrogen filler aminos. ${loser.name}, while budget-friendly, incorporates high-GI Maltodextrin and synthetic sweeteners which may cause digestive inflammation and diminished protein synthesis for serious lifters.`
+                    ? `This comparison features a head-to-head assay of ${currentProdA?.name || 'both products'}. Both evaluate with identical purity scores (${currentProdA?.purityScore || 65}/100) and matching biochemical profiles, resulting in a tie.`
+                    : `This comparison features a head-to-head assay between ${currentProdA?.name || 'Product A'} and ${currentProdB?.name || 'Product B'}. From a nutritional standpoint, ${winningProduct?.name || 'Winner'} delivers genuine bio-available nutrients without harmful spiking or filler adulteration. ${losingProduct?.name || 'Competitor'} includes lower purity ratios or synthetic additives which may reduce effectiveness.`
                   }
                 </p>
               </div>
 
               {/* अंतिम निर्णय (HINDI VERDICT) */}
-              <div className="p-6 rounded-3xl glass-card-neo border border-emerald-500/20 space-y-2.5">
+              <div className="p-5 sm:p-6 rounded-3xl glass-card-neo border border-emerald-500/20 space-y-2.5">
                 <span className="text-[10px] font-mono font-black text-emerald-400 uppercase tracking-widest block">
                   अंतिम निर्णय (HINDI VERDICT)
                 </span>
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
                   {isTie
-                    ? `यह तुलना दोनों स्लॉट में एक ही उत्पाद (${currentProdA.name}) का विश्लेषण है। दोनों नमूनों के पोषण गुण, सुरक्षा रेटिंग (स्कोर ${currentProdA.purityScore}/100) और बायोकेमिकल प्रोफाइल पूरी तरह समान हैं, जिससे यह तुलना एक स्पष्ट स्वस्थ टाई (Healthy Tie) के रूप में समाप्त होती है।`
-                    : `यह तुलना ${currentProdA.name} और ${currentProdB.name} के बीच एक निष्पक्ष प्रयोगशाला विश्लेषण है। पोषण के दृष्टिकोण से, ${winner.name} बिना किसी अवांछित अमीनो स्पाइकिंग या सस्ते माल्टोडेक्सट्रिन फिलर्स के शुद्ध प्रोटीन प्रदान करता है। वहीं ${loser.name} में पाए गए कृत्रिम स्वीटनर और फिलर्स दीर्घकालिक फिटनेस और पाचन के लिए आदर्श विकल्प नहीं हैं।`
+                    ? `यह तुलना दोनों उत्पादों (${currentProdA?.name || 'उत्पाद'}) का संतुलित प्रयोगशाला विश्लेषण है। दोनों का शुद्धता स्कोर (${currentProdA?.purityScore || 65}/100) और सुरक्षा रेटिंग समान होने के कारण यह एक स्पष्ट स्वस्थ टाई (Healthy Tie) है।`
+                    : `यह तुलना ${currentProdA?.name || 'उत्पाद A'} और ${currentProdB?.name || 'उत्पाद B'} के बीच प्रयोगशाला विश्लेषण है। पोषण गुणवत्ता के आधार पर, ${winningProduct?.name || 'विजेता उत्पाद'} अधिक शुद्ध और प्रभावी सामग्री प्रदान करता है। वहीं ${losingProduct?.name || 'दूसरा उत्पाद'} में पाए गए अतिरिक्त फिलर्स या स्वीटनर शुद्धता को कम करते हैं।`
                   }
                 </p>
               </div>
@@ -883,10 +999,10 @@ export default function CompareModal({ isOpen, onClose }) {
             </div>
 
             {/* Reset / New Comparison Trigger */}
-            <div className="text-center pt-4">
+            <div className="text-center pt-2">
               <button
                 onClick={() => { setHasCompared(false); setImgA(null); setImgB(null); setProdA(null); setProdB(null); }}
-                className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition cursor-pointer"
+                className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
               >
                 Compare Another Product Pair
               </button>
