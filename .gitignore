@@ -1,5 +1,7 @@
 node_modules/
 server/node_modules/
+ml-service/.venv/
+ml-service/__pycache__/
 dist/
 .env
 .env.local

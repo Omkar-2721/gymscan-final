@@ -1,0 +1,120 @@
+{
+  "ingredient_classifier": {
+    "selected_model": "LogisticRegression",
+    "dataset_rows": 242,
+    "train_rows": 193,
+    "test_rows": 49,
+    "candidates": {
+      "LogisticRegression": {
+        "accuracy": 0.6735,
+        "precision_macro": 0.6979,
+        "recall_macro": 0.6862,
+        "f1_macro": 0.6847
+      },
+      "LinearSVM_Calibrated": {
+        "accuracy": 0.6735,
+        "precision_macro": 0.693,
+        "recall_macro": 0.681,
+        "f1_macro": 0.6804
+      }
+    },
+    "holdout_metrics": {
+      "accuracy": 0.6735,
+      "precision_macro": 0.6979,
+      "recall_macro": 0.6862,
+      "f1_macro": 0.6847
+    },
+    "confusion_matrix_labels": [
+      "beneficial",
+      "neutral",
+      "harmful",
+      "banned_wada"
+    ],
+    "confusion_matrix": [
+      [
+        10,
+        4,
+        1,
+        1
+      ],
+      [
+        4,
+        7,
+        0,
+        1
+      ],
+      [
+        1,
+        2,
+        7,
+        1
+      ],
+      [
+        0,
+        1,
+        0,
+        9
+      ]
+    ]
+  },
+  "spiking_detector": {
+    "model": "RandomForestClassifier",
+    "dataset_rows": 600,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "roc_auc": 1.0,
+    "feature_importances": {
+      "min_spiking_position": 0.1298,
+      "mean_spiking_position": 0.0847,
+      "free_amino_count": 0.1248,
+      "has_proprietary_blend": 0.0061,
+      "claimed_protein_g": 0.1251,
+      "expected_protein_g": 0.1088,
+      "protein_gap_g": 0.4207
+    }
+  },
+  "purity_scorer": {
+    "selected_model": "GradientBoostingRegressor",
+    "dataset_rows": 800,
+    "comparison": {
+      "LinearRegression": {
+        "cv_mae": 2.3437,
+        "cv_rmse": 2.9439,
+        "cv_r2": 0.9892,
+        "test_mae": 1.747,
+        "test_rmse": 2.2452,
+        "test_r2": 0.9931
+      },
+      "RandomForestRegressor": {
+        "cv_mae": 2.4521,
+        "cv_rmse": 3.3476,
+        "cv_r2": 0.986,
+        "test_mae": 2.1736,
+        "test_rmse": 3.1422,
+        "test_r2": 0.9865
+      },
+      "GradientBoostingRegressor": {
+        "cv_mae": 2.1852,
+        "cv_rmse": 2.9307,
+        "cv_r2": 0.9892,
+        "test_mae": 1.9106,
+        "test_rmse": 2.7106,
+        "test_r2": 0.9899
+      }
+    },
+    "feature_importances": {
+      "protein_per_serving_g": 0.094,
+      "serving_size_g": 0.005,
+      "protein_percent": 0.0118,
+      "sugar_g": 0.0098,
+      "amino_acid_ratio": 0.0104,
+      "blend_transparency": 0.8126,
+      "number_of_harmful_ingredients": 0.0386,
+      "number_of_banned_ingredients": 0.0077,
+      "artificial_additive_count": 0.0058,
+      "spiking_risk_probability": 0.0042
+    }
+  }
+}

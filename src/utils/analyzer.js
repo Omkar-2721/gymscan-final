@@ -1,4 +1,5 @@
 import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
+import { extractTextWithEasyOCR, analyzeWithMLPipeline } from './mlService';
 
 // Comprehensive Database of 60+ Recognized Fitness, Gym & Nutrition Brands
 export const POPULAR_BRANDS_DB = [
@@ -521,6 +522,7 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
     servingSize,
     verdict,
     verdictHindi,
+    rawText: rawText || "",
     ingredientsList: ingredientBreakdown.length > 0 ? ingredientBreakdown : [
       { name: category.includes("Bar") ? "Whey Protein Crisps" : category.includes("Butter") ? "Roasted Peanuts" : "Whey Protein Concentrate", status: "safe", reason: "Active bioavailable nutrient" },
       { name: "Sunflower Lecithin", status: "safe", reason: "Clean emulsifier" }
@@ -535,9 +537,25 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
   };
 }
 
-// Ultra-Fast Zero-Lag Mobile OCR Downsampler & Recognizer
-export async function performLiveOCRAndAnalyze(imageSource, fallbackSlot = 'A', fileNameHint = '') {
+/**
+ * Runs local heuristic parsing first, then enriches with the Python ML pipeline
+ * (/classify, /spiking, /score). Falls back cleanly to the local scorer if ML is down.
+ */
+export async function analyzeTextWithMLFallback(rawText, preferredName = null, preferredBrand = null, fallbackSlot = 'A') {
+  const localResult = analyzeSupplementIngredients(rawText, preferredName, preferredBrand, fallbackSlot);
+  return await analyzeWithMLPipeline({ rawText, localResult });
+}
+
+// Ultra-Fast Zero-Lag Mobile OCR Downsampler & Recognizer (Tesseract.js or EasyOCR)
+export async function performLiveOCRAndAnalyze(
+  imageSource,
+  fallbackSlot = 'A',
+  fileNameHint = '',
+  ocrEngine = 'tesseract'
+) {
   let combinedText = fileNameHint ? `${fileNameHint}\n` : '';
+  let ocrEngineUsed = ocrEngine === 'easyocr' ? 'easyocr' : 'tesseract';
+  let ocrFallbackNotice = null;
 
   try {
     // 1. Create a lightweight downsampled canvas to prevent mobile memory spikes & lag
@@ -568,28 +586,46 @@ export async function performLiveOCRAndAnalyze(imageSource, fallbackSlot = 'A', 
       img.src = imageSource;
     });
 
-    // 2. Fast timeout-bounded OCR Worker (2.5s limit so device never hangs)
-    const ocrPromise = (async () => {
-      const { createWorker } = await import('tesseract.js');
-      const worker = await createWorker('eng');
-      const ret = await worker.recognize(downsampledImage);
-      await worker.terminate();
-      return ret.data.text || "";
-    })();
+    let ocrText = "";
 
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(""), 2500));
-    const ocrText = await Promise.race([ocrPromise, timeoutPromise]);
-    
+    // 2A. Optional EasyOCR server extraction when selected
+    if (ocrEngineUsed === 'easyocr') {
+      try {
+        const easyRes = await extractTextWithEasyOCR(downsampledImage);
+        ocrText = easyRes?.text || "";
+      } catch (easyErr) {
+        console.warn("EasyOCR unavailable, falling back to Tesseract.js:", easyErr);
+        ocrEngineUsed = 'tesseract';
+        ocrFallbackNotice = "EasyOCR server unavailable — extracted text with Tesseract.js instead.";
+      }
+    }
+
+    // 2B. Tesseract.js in-browser WASM OCR (primary or fallback)
+    if (!ocrText && ocrEngineUsed === 'tesseract') {
+      const ocrPromise = (async () => {
+        const { createWorker } = await import('tesseract.js');
+        const worker = await createWorker('eng');
+        const ret = await worker.recognize(downsampledImage);
+        await worker.terminate();
+        return ret.data.text || "";
+      })();
+
+      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(""), 2500));
+      ocrText = await Promise.race([ocrPromise, timeoutPromise]);
+    }
+
     combinedText += ocrText;
     if (combinedText.trim().length > 3) {
-      return analyzeSupplementIngredients(combinedText, null, null, fallbackSlot);
+      const enriched = await analyzeTextWithMLFallback(combinedText, null, null, fallbackSlot);
+      return { ...enriched, ocrEngineUsed, ocrFallbackNotice };
     }
   } catch (err) {
     console.warn("Fast OCR fallback handled cleanly:", err);
   }
 
   if (combinedText.trim().length > 3) {
-    return analyzeSupplementIngredients(combinedText, null, null, fallbackSlot);
+    const enriched = await analyzeTextWithMLFallback(combinedText, null, null, fallbackSlot);
+    return { ...enriched, ocrEngineUsed, ocrFallbackNotice };
   }
 
   // 3. Fallback slot-specific real authentic name
@@ -597,5 +633,6 @@ export async function performLiveOCRAndAnalyze(imageSource, fallbackSlot = 'A', 
     ? "GNC Pro Performance 100% Whey Protein Indian Formulation Maltodextrin Sucralose" 
     : "Bolt Nutrition 22g High-Protein Bar Whey Crisps Cocoa Almonds Clean Fiber";
 
-  return analyzeSupplementIngredients(fallbackText, null, null, fallbackSlot);
+  const enrichedFallback = await analyzeTextWithMLFallback(fallbackText, null, null, fallbackSlot);
+  return { ...enrichedFallback, ocrEngineUsed, ocrFallbackNotice };
 }
