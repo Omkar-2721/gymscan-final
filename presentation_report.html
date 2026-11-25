@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GymScan - Project Presentation & Technical Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+  @page {
+    size: A4 portrait;
+    margin: 14mm 16mm 14mm 16mm;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #0f172a;
+    background-color: #ffffff;
+    line-height: 1.55;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* Header & Footers */
+  .doc-header {
+    border-bottom: 2px solid #e11d48;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .doc-logo {
+    font-size: 16pt;
+    font-weight: 800;
+    color: #881337;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .doc-logo span {
+    color: #e11d48;
+  }
+  .doc-badge {
+    background: #fff1f2;
+    color: #e11d48;
+    border: 1px solid #fecdd3;
+    font-size: 8pt;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Cover Page */
+  .cover-container {
+    height: 94vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 30px 20px;
+    background: linear-gradient(145deg, #4c0519 0%, #881337 40%, #1e1b4b 100%);
+    color: white;
+    border-radius: 24px;
+  }
+  .cover-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cover-title-box {
+    margin-top: 40px;
+  }
+  .cover-title {
+    font-size: 34pt;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+  }
+  .cover-title span {
+    color: #fb7185;
+  }
+  .cover-subtitle {
+    font-size: 14pt;
+    color: #fbcfe8;
+    font-weight: 500;
+    line-height: 1.4;
+    max-width: 600px;
+    margin-bottom: 25px;
+  }
+  .tech-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 15px;
+  }
+  .tech-pill {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.25);
+    padding: 5px 14px;
+    border-radius: 30px;
+    font-size: 9pt;
+    font-weight: 600;
+    color: white;
+  }
+  .cover-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    background: rgba(0,0,0,0.3);
+    padding: 20px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .meta-item-label {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #fda4af;
+    font-weight: 700;
+  }
+  .meta-item-value {
+    font-size: 11pt;
+    font-weight: 700;
+    color: white;
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 18pt;
+    font-weight: 800;
+    color: #881337;
+    margin-bottom: 14px;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1.5px solid #ffe4e6;
+    padding-bottom: 6px;
+  }
+  h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #9f1239;
+    margin-top: 16px;
+    margin-bottom: 8px;
+  }
+  h3 {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #1e293b;
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+  p {
+    margin-bottom: 10px;
+    color: #334155;
+    text-align: justify;
+  }
+
+  /* Cards & Callouts */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 12px 0;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .card.alert {
+    background: #fff1f2;
+    border-color: #fecdd3;
+  }
+  .card.success {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+  }
+  .card.purple {
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+  }
+  .card-title {
+    font-size: 10.5pt;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-title.red { color: #be123c; }
+  .card-title.green { color: #047857; }
+  .card-title.purple { color: #6d28d9; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 9pt;
+  }
+  th {
+    background: #881337;
+    color: white;
+    text-align: left;
+    padding: 8px 10px;
+    font-weight: 700;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  th:first-child { border-radius: 8px 0 0 0; }
+  th:last-child { border-radius: 0 8px 0 0; }
+  td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+  }
+  tr:nth-child(even) {
+    background: #f8fafc;
+  }
+
+  /* Code & Architecture */
+  .arch-box {
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 12px;
+    padding: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+    line-height: 1.45;
+    margin: 12px 0;
+    border-left: 4px solid #e11d48;
+  }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .flow-num {
+    background: #e11d48;
+    color: white;
+    font-weight: 800;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8.5pt;
+    flex-shrink: 0;
+  }
+  .flow-content {
+    flex: 1;
+  }
+  .flow-title {
+    font-weight: 700;
+    color: #881337;
+    font-size: 10pt;
+  }
+  .flow-desc {
+    font-size: 9pt;
+    color: #475569;
+  }
+
+  ul {
+    margin-left: 18px;
+    margin-bottom: 10px;
+  }
+  li {
+    margin-bottom: 4px;
+    color: #334155;
+  }
+
+  /* QA Block */
+  .qa-item {
+    margin-bottom: 12px;
+    background: #f8fafc;
+    border-left: 3px solid #e11d48;
+    padding: 8px 12px;
+    border-radius: 0 8px 8px 0;
+  }
+  .qa-q {
+    font-weight: 700;
+    color: #881337;
+    font-size: 9.5pt;
+    margin-bottom: 3px;
+  }
+  .qa-a {
+    font-size: 9pt;
+    color: #334155;
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= PAGE 1: COVER PAGE ================= -->
+<div class="cover-container page-break">
+  <div class="cover-top">
+    <div style="font-size: 18pt; font-weight: 800; letter-spacing: 1px;">GYM<span>SCAN</span> ⚡</div>
+    <div style="background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 9pt; letter-spacing: 0.5px;">PROJECT REPORT & PRESENTATION</div>
+  </div>
+
+  <div class="cover-title-box">
+    <div class="cover-title">AI Supplement & Nutrition Verifier</div>
+    <div class="cover-subtitle">
+      An Intelligent Computer Vision & Nutritional Forensics Web Application for Adulteration Detection, Multi-Category Supplement Analysis & Dual-Product Comparison.
+    </div>
+
+    <div class="tech-pills">
+      <div class="tech-pill">🔍 Tesseract.js (WASM OCR)</div>
+      <div class="tech-pill">⚡ React 18 & Vite</div>
+      <div class="tech-pill">🧬 Amino Spiking Detection</div>
+      <div class="tech-pill">📊 Purity Algorithm (0-100)</div>
+      <div class="tech-pill">📱 Zero-Lag Mobile Canvas</div>
+      <div class="tech-pill">🌐 Vercel Serverless Ready</div>
+    </div>
+  </div>
+
+  <div class="cover-meta-grid">
+    <div>
+      <div class="meta-item-label">Project Domain</div>
+      <div class="meta-item-value">Artificial Intelligence / HealthTech / Computer Vision</div>
+    </div>
+    <div>
+      <div class="meta-item-label">Application Type</div>
+      <div class="meta-item-value">Real-Time Progressive Web App (PWA)</div>
+    </div>
+    <div>
+      <div class="meta-item-label">Key Novelty</div>
+      <div class="meta-item-value">Client-Side Privacy-First OCR & Clinical Assay Engine</div>
+    </div>
+    <div>
+      <div class="meta-item-label">Deployment</div>
+      <div class="meta-item-value">Live Production Build on Vercel Architecture</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PAGE 2: EXECUTIVE SUMMARY & PROBLEM STATEMENT ================= -->
+<div class="doc-header">
+  <div class="doc-logo">Gym<span>Scan</span> Presentation</div>
+  <div class="doc-badge">Chapter 1: Problem & Aim</div>
+</div>
+
+<h1>1. Project Overview & Problem Statement</h1>
+
+<p>
+The dietary supplement and sports nutrition market has experienced exponential growth globally, valued at over \$160 Billion in 2025. However, this massive demand has led to widespread industry malpractices, predatory marketing, and chemical adulteration that pose serious health and financial risks to gym-goers, athletes, and fitness enthusiasts.
+</p>
+
+<h2>The 4 Critical Adulteration Crises in Fitness Nutrition:</h2>
+
+<div class="grid-2">
+  <div class="card alert">
+    <div class="card-title red">🚨 1. Amino Spiking (Nitrogen Fraud)</div>
+    <p style="font-size: 8.8pt;">
+      Manufacturers add cheap non-protein nitrogen compounds (<em>Glycine, Taurine, Alanine, Creatine</em>) to falsely inflate total nitrogen readings during standard Kjeldahl protein tests. A product claiming 25g protein often delivers less than 11g of true muscle-building intact whey.
+    </p>
+  </div>
+  <div class="card alert">
+    <div class="card-title red">⚠️ 2. Heavy Fillers & Diluents</div>
+    <p style="font-size: 8.8pt;">
+      Cheap carbohydrate bulking agents like <strong>Maltodextrin</strong>, corn syrup solids, and hydrogenated palm oil fractions are secretly added to powders and protein bars, causing rapid insulin spikes, bloating, and fat accumulation while diluting active ingredients.
+    </p>
+  </div>
+  <div class="card alert">
+    <div class="card-title red">⛔ 3. Banned & Dangerous Stimulants</div>
+    <p style="font-size: 8.8pt;">
+      Underground pre-workout and fat-burner formulas hide prohibited, dangerous compounds such as <strong>DMAA</strong>, <strong>DMHA</strong>, and <strong>Ephedra</strong> inside misleading "Proprietary Blends", leading to severe cardiovascular strain and athletic doping bans.
+    </p>
+  </div>
+  <div class="card alert">
+    <div class="card-title red">🧪 4. Synthetic Dyes & Irritating Sugar Alcohols</div>
+    <p style="font-size: 8.8pt;">
+      Excessive use of artificial food dyes (Red 40, Yellow 5) and high-glycemic sugar alcohols like <strong>Maltitol</strong> in "zero sugar" protein bars causes severe gastrointestinal distress, diarrhea, and allergen reactions.
+    </p>
+  </div>
+</div>
+
+<h2>Project Aim & Core Mission:</h2>
+<div class="card success">
+  <div class="card-title green">🎯 The GymScan Mission</div>
+  <p style="font-size: 9pt;">
+    <strong>GymScan</strong> was conceived to solve the information asymmetry between supplement brands and everyday consumers. By combining <strong>on-device Computer Vision (OCR)</strong> with a <strong>heuristic clinical nutrition engine</strong>, GymScan enables users to snap a photo of any supplement tub or snack label on their phone and receive an instantaneous, objective laboratory verification report within 2 seconds.
+  </p>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ================= PAGE 3: CORE CAPABILITIES & ARCHITECTURE ================= -->
+<div class="doc-header">
+  <div class="doc-logo">Gym<span>Scan</span> Presentation</div>
+  <div class="doc-badge">Chapter 2: System Architecture</div>
+</div>
+
+<h1>2. System Architecture & Technical Pipeline</h1>
+
+<p>
+GymScan utilizes a 100% client-side, privacy-preserving, zero-latency processing pipeline. No sensitive user photos are transferred to external third-party cloud servers, guaranteeing complete privacy, zero hosting API costs, and instant offline-ready speeds.
+</p>
+
+<h2>End-to-End Execution Pipeline:</h2>
+
+<div class="flow-step">
+  <div class="flow-num">1</div>
+  <div class="flow-content">
+    <div class="flow-title">Image Acquisition & Adaptive Canvas Preprocessor</div>
+    <div class="flow-desc">Captures label photo via HTML5 getUserMedia API or gallery picker. Normalizes 12MP/48MP smartphone photos on an in-memory 800px Canvas to prevent mobile CPU stutter and memory spikes.</div>
+  </div>
+</div>
+
+<div class="flow-step">
+  <div class="flow-num">2</div>
+  <div class="flow-content">
+    <div class="flow-title">WebAssembly (WASM) Optical Character Recognition (OCR)</div>
+    <div class="flow-desc">Tesseract.js WebAssembly worker executes bounded OCR extraction (2.5s timeout bound) directly on device, transcribing typography, nutrition tables, and ingredient lists into clean raw text.</div>
+  </div>
+</div>
+
+<div class="flow-step">
+  <div class="flow-num">3</div>
+  <div class="flow-content">
+    <div class="flow-title">Universal NLP Label & Brand Classifier</div>
+    <div class="flow-desc">Inspects text against 60+ global/Indian brands (Optimum Nutrition, MuscleBlaze, Bolt Nutrition, GNC, Dymatize, Quest, etc.) or extracts dynamic packaging headlines for unlisted brands.</div>
+  </div>
+</div>
+
+<div class="flow-step">
+  <div class="flow-num">4</div>
+  <div class="flow-content">
+    <div class="flow-title">Multi-Category Nutritional & Adulteration Heuristic Engine</div>
+    <div class="flow-desc">Screens ingredient tokens against curated dictionaries (Amino Spikes, Banned Stims, Fillers, Synthetic Dyes, Clean Markers). Extracts macros and computes 0-100 Purity Score.</div>
+  </div>
+</div>
+
+<div class="flow-step">
+  <div class="flow-num">5</div>
+  <div class="flow-content">
+    <div class="flow-title">Reactive UI, Showdown Matrix & Bilingual Verdicts</div>
+    <div class="flow-desc">Renders interactive clinical assays, macros breakdowns, side-by-side comparison winner banners, and English/Hindi clinical verdicts with 1-click WhatsApp sharing.</div>
+  </div>
+</div>
+
+<h2>Architecture Diagram (Data Flow):</h2>
+
+<div class="arch-box">
+[ User Camera / Upload ]
+         │
+         ▼
+[ HTML5 Canvas 800px Downscaler ] ──> (Zero-Lag Mobile Memory Protection)
+         │
+         ▼
+[ Tesseract.js WASM Worker ] ───────> (2.5s Timeout Bounded OCR)
+         │
+         ▼
+[ NLP Tokenizer & Regex Extractor ] ─> (Extracts Brand, Macros, Protein, Calories)
+         │
+         ▼
+[ Molecular Purity Engine ] ────────> (Purity = Base 92 - Spikes - Stims - Fillers + Clean)
+         │
+         ▼
+[ Dual Showdown & Verdict Generator ] -> [ React 18 UI / WhatsApp Share / PDF Export ]
+</div>
+
+<div class="page-break"></div>
+
+<!-- ================= PAGE 4: MULTI-CATEGORY SUPPORT & MATHEMATICAL ALGORITHM ================= -->
+<div class="doc-header">
+  <div class="doc-logo">Gym<span>Scan</span> Presentation</div>
+  <div class="doc-badge">Chapter 3: Algorithms & Categories</div>
+</div>
+
+<h1>3. Multi-Category Engine & Purity Algorithm</h1>
+
+<p>
+Unlike generic calorie-tracking apps, GymScan enforces <strong>category-specific clinical verification rules</strong> tailored to the unique manufacturing standards of each supplement class:
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Supplement Category</th>
+      <th>Primary Clinical Screening</th>
+      <th>Key Risk Checks</th>
+      <th>Default Biomarkers</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>100% Whey / Plant Isolate</strong></td>
+      <td>Amino Spiking & True Intact Protein Ratio</td>
+      <td>Glycine, Taurine, Added Alanine, Heavy Metals</td>
+      <td>24g-30g Protein, &lt;3g Carbs</td>
+    </tr>
+    <tr>
+      <td><strong>Protein Bars & Snacks</strong></td>
+      <td>Sugar Alcohol Irritants & Palm Oil</td>
+      <td>Maltitol polyol bloat, Hydrogenated fat, Corn syrup</td>
+      <td>20g-22g Protein, Clean fiber</td>
+    </tr>
+    <tr>
+      <td><strong>Pre-Workout & Energy Cans</strong></td>
+      <td>WADA Banned Doping Stimulants</td>
+      <td>DMAA, DMHA, Ephedrine, Red 40 / Yellow 5 Dyes</td>
+      <td>0g Sugar, Active Beta-Alanine</td>
+    </tr>
+    <tr>
+      <td><strong>Creatine & Strength</strong></td>
+      <td>Mesh Micronization & Creapure Grade</td>
+      <td>Heavy metal ash, Dicyandiamide, Dihydrotriazine</td>
+      <td>5g Pure Micronized Creatine</td>
+    </tr>
+    <tr>
+      <td><strong>RTD Protein Drinks</strong></td>
+      <td>Milk & Whey Bioavailability</td>
+      <td>Carrageenan stabilizers, Added sugar syrups</td>
+      <td>25g RTD Protein, Clean Milk</td>
+    </tr>
+    <tr>
+      <td><strong>Fitness Nut Butters</strong></td>
+      <td>Hydrogenated Oil & Aflatoxin Risk</td>
+      <td>Palm oil emulsifiers, Added sugars, Salt ratio</td>
+      <td>30g Protein / 100g, 0 Palm Oil</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Mathematical Purity Scoring Formula:</h2>
+
+<div class="card purple">
+  <div class="card-title purple">📐 Mathematical Formulation</div>
+  <p style="font-family: 'JetBrains Mono', monospace; font-size: 8.5pt; color: #3b0764; margin-bottom: 6px;">
+    <strong>Purity Score (S)</strong> = Base (92) - ∑(Penalty_i) + ∑(Bonus_j)<br>
+    Bounded between [15, 99].
+  </p>
+  <ul style="font-size: 8.5pt; color: #4c1d95; margin-bottom: 0;">
+    <li><strong>Amino Spiking Penalty:</strong> -28 points per detected free amino acid token.</li>
+    <li><strong>Banned Stimulant Penalty:</strong> -40 points per prohibited athletic stimulant.</li>
+    <li><strong>Filler & Diluent Penalty:</strong> -18 points per maltodextrin/corn syrup entry.</li>
+    <li><strong>Maltitol / Dye Penalty:</strong> -22 points for high-GI polyols in snack bars.</li>
+    <li><strong>Clean Quality Bonus:</strong> +4 points for Creapure, Sunflower Lecithin, Stevia, Isolate.</li>
+  </ul>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ================= PAGE 5: TECH STACK & PRESENTATION VIVA CHEAT SHEET ================= -->
+<div class="doc-header">
+  <div class="doc-logo">Gym<span>Scan</span> Presentation</div>
+  <div class="doc-badge">Chapter 4: Technology & Q&A Defense</div>
+</div>
+
+<h1>4. Technology Stack & Presentation Q&A Guide</h1>
+
+<div class="grid-3">
+  <div class="card">
+    <div style="font-weight: 700; color: #881337; font-size: 9pt;">FRONTEND ARCHITECTURE</div>
+    <div style="font-size: 8.5pt; color: #475569; margin-top: 4px;">
+      • React 18 & Vite 5<br>
+      • Tailwind CSS & Glassmorphism<br>
+      • Lucide Modern Icons<br>
+      • Responsive Mobile AR Viewfinder
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-weight: 700; color: #881337; font-size: 9pt;">CLIENT-SIDE AI & VISION</div>
+    <div style="font-size: 8.5pt; color: #475569; margin-top: 4px;">
+      • Tesseract.js (WASM Web Worker)<br>
+      • HTML5 Canvas 2D Preprocessor<br>
+      • Zero-Lag Latency Guard (2.5s)<br>
+      • Multi-Pass Dynamic Title Parser
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-weight: 700; color: #881337; font-size: 9pt;">DEPLOYMENT & SECURITY</div>
+    <div style="font-size: 8.5pt; color: #475569; margin-top: 4px;">
+      • Vercel Edge Cloud Platform<br>
+      • Zero External Data Storage<br>
+      • 100% On-Device Privacy<br>
+      • 5-Scan Free Quota State Engine
+    </div>
+  </div>
+</div>
+
+<h2>Presentation Q&A / Viva Defense (Top 5 Questions & Answers):</h2>
+
+<div class="qa-item">
+  <div class="qa-q">Q1: How does GymScan detect Amino Spiking when brands claim high protein on the label?</div>
+  <div class="qa-a"><strong>Answer:</strong> Standard Kjeldahl lab tests measure total nitrogen, not intact amino acid peptide chains. GymScan's NLP engine scans the ingredients list for added free nitrogen compounds (Glycine, L-Taurine, Alanine). When found in combination with concentrate whey, the system flags the product and reduces the estimated True Intact Protein ratio to 40-55%.</div>
+</div>
+
+<div class="qa-item">
+  <div class="qa-q">Q2: Why does GymScan process OCR on the client-side instead of using Cloud APIs (like Google Cloud Vision)?</div>
+  <div class="qa-a"><strong>Answer:</strong> Client-side WASM OCR provides 3 key advantages: (1) Zero server API costs, allowing scalable free usage; (2) Total user privacy since photos never leave the phone; (3) Instant offline capability and near-zero network latency.</div>
+</div>
+
+<div class="qa-item">
+  <div class="qa-q">Q3: How does the system prevent mobile browser freezing on 48MP smartphone photos?</div>
+  <div class="qa-a"><strong>Answer:</strong> We implemented an in-memory Canvas downsampler that dynamically normalizes any high-resolution image to an optimal 800px dimension with 85% JPEG quality before invoking the WASM worker, paired with a strict 2.5-second execution bound.</div>
+</div>
+
+<div class="qa-item">
+  <div class="qa-q">Q4: What happens if a user scans a brand that is NOT in the database?</div>
+  <div class="qa-a"><strong>Answer:</strong> GymScan uses a Universal Dynamic OCR Line Extractor that filters out boilerplate text (like "Nutrition Facts", "Batch No") to dynamically isolate the packaging headline, brand name, exact nutritional numbers, and raw ingredients for ANY product globally.</div>
+</div>
+
+<div class="qa-item">
+  <div class="qa-q">Q5: What is the future commercial monetization model for GymScan?</div>
+  <div class="qa-a"><strong>Answer:</strong> A Freemium Model offering 5 Free Scans upon email registration, followed by micro-subscriptions (₹99/month for unlimited scans) integrated with Razorpay/Stripe, plus B2B verification partnerships with certified supplement labs.</div>
+</div>
+
+<div style="margin-top: 20px; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 8pt; color: #94a3b8;">
+  GymScan 2026 © Confidential Academic & Presentation Technical Report • Generated with Antigravity AI
+</div>
+
+</body>
+</html>
