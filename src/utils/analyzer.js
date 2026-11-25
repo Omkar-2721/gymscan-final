@@ -1,5 +1,15 @@
 import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
 import { extractTextWithEasyOCR, analyzeWithMLPipeline } from './mlService';
+import { preprocessImageInBrowser } from './imagePreprocess';
+import {
+  recognizeWithVariants,
+  parseLabelAndMatch,
+  extractMacrosFromOCR,
+} from './ocrEngine';
+import {
+  detectBarcodeFromCanvasOrImage,
+  lookupBarcodeOpenFoodFacts,
+} from './barcodeScanner';
 
 // Comprehensive Database of 60+ Recognized Fitness, Gym & Nutrition Brands
 export const POPULAR_BRANDS_DB = [
@@ -341,8 +351,14 @@ export function detectProductCategory(text, fallback = "Gym Supplement") {
   return fallback;
 }
 
-// Full Intelligent Multi-Category Ingredient & Nutrition Analyzer
-export function analyzeSupplementIngredients(rawText, preferredName = null, preferredBrand = null, fallbackSlot = 'A') {
+// Full Intelligent Multi-Category Ingredient & Nutrition Analyzer (with Label Region & Fuzzy Dictionary)
+export function analyzeSupplementIngredients(
+  rawText,
+  preferredName = null,
+  preferredBrand = null,
+  fallbackSlot = 'A',
+  macroOverrides = null
+) {
   const normalized = (rawText || "").toLowerCase();
   const identity = identifyBrandAndProduct(rawText, fallbackSlot);
 
@@ -350,9 +366,10 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
   const productName = preferredName || identity.name;
   const category = identity.category || detectProductCategory(normalized);
 
-  // Tokenize ingredients
-  const rawTokens = normalized.split(/[,;\n•|\t/:]+/).map(s => s.trim()).filter(s => s.length > 2);
-  
+  // 1. Parse Ingredients / Supplement Facts section & fuzzy-match against 300+ dictionary
+  const parsed = parseLabelAndMatch(rawText || "");
+  const matchedEntries = parsed.ingredients || [];
+
   let detectedAminoSpikes = [];
   let detectedFillers = [];
   let detectedBannedStims = [];
@@ -361,72 +378,151 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
   let detectedCleanMarkers = [];
   let ingredientBreakdown = [];
 
-  rawTokens.forEach(tok => {
-    let status = "safe";
-    let reason = "Standard active nutrient";
+  if (matchedEntries.length > 0) {
+    matchedEntries.forEach((item) => {
+      const tokLower = (item.matchedName || item.displayName || "").toLowerCase();
+      let status =
+        item.status === "banned_wada" || item.status === "harmful"
+          ? "danger"
+          : item.status === "neutral"
+          ? "warning"
+          : "safe";
+      let mlClass = item.status; // beneficial | neutral | harmful | banned_wada
+      let reason = item.reason;
 
-    // 1. Amino Spiking
-    if (AMINO_SPIKE_KEYWORDS.some(k => tok.includes(k))) {
-      status = "danger";
-      reason = "AMINO SPIKE: Cheap non-intact nitrogen inflation detected";
-      detectedAminoSpikes.push(tok);
-    }
-    // 2. Banned / Risky Stimulants
-    else if (BANNED_STIM_KEYWORDS.some(k => tok.includes(k))) {
-      status = "danger";
-      reason = "BANNED STIMULANT: Prohibited by WADA & tested athletic leagues";
-      detectedBannedStims.push(tok);
-    }
-    // 3. Cheap Fillers & Heavy Fats
-    else if (FILLER_KEYWORDS.some(k => tok.includes(k))) {
-      status = "danger";
-      reason = category.includes("Bar") ? "LOW QUALITY OIL/FILLER: Hydrogenated fat or corn syrup" : "CHEAP FILLER: Added maltodextrin/corn solids diluting purity";
-      detectedFillers.push(tok);
-    }
-    // 4. Harmful Dyes / Additives
-    else if (HARMFUL_DYES_PRESERVATIVES.some(k => tok.includes(k))) {
-      status = "warning";
-      reason = "SYNTHETIC COLOR/ADDITIVE: May cause gastrointestinal or allergic sensitivity";
-      detectedDyes.push(tok);
-    }
-    // 5. Artificial Sweeteners / Sugar Alcohols
-    else if (ARTIFICIAL_SWEETENERS.some(k => tok.includes(k))) {
-      status = "warning";
-      reason = tok.includes("maltitol") ? "MALTITOL: High glycemic index sugar alcohol causing bloating" : "ARTIFICIAL SWEETENER: High-intensity chemical sweetener";
-      detectedSweeteners.push(tok);
-    }
-    // 6. Clean / Premium Markers
-    else if (CLEAN_PREMIUM_MARKERS.some(k => tok.includes(k))) {
-      status = "safe";
-      reason = "HIGH PURITY: Lab-grade, clean bioavailable nutrient source";
-      detectedCleanMarkers.push(tok);
-    }
+      if (item.unrecognized) {
+        status = "warning";
+        mlClass = "neutral";
+        reason = "Unrecognized - tap to correct";
+      } else if (item.status === "banned_wada" || BANNED_STIM_KEYWORDS.some((k) => tokLower.includes(k))) {
+        status = "danger";
+        mlClass = "banned_wada";
+        detectedBannedStims.push(item.matchedName);
+      } else if (
+        item.category === "amino_spike" ||
+        AMINO_SPIKE_KEYWORDS.some((k) => tokLower.includes(k))
+      ) {
+        status = "danger";
+        mlClass = "harmful";
+        detectedAminoSpikes.push(item.matchedName);
+      } else if (
+        item.category === "filler" ||
+        item.category === "sugar" ||
+        item.category === "fat_bad" ||
+        FILLER_KEYWORDS.some((k) => tokLower.includes(k))
+      ) {
+        status = "danger";
+        mlClass = "harmful";
+        detectedFillers.push(item.matchedName);
+      } else if (
+        item.category === "dye" ||
+        item.category === "preservative" ||
+        item.category === "color" ||
+        HARMFUL_DYES_PRESERVATIVES.some((k) => tokLower.includes(k))
+      ) {
+        status = "warning";
+        mlClass = "harmful";
+        detectedDyes.push(item.matchedName);
+      } else if (
+        item.category === "sweetener_artificial" ||
+        item.category === "sweetener_polyol" ||
+        ARTIFICIAL_SWEETENERS.some((k) => tokLower.includes(k))
+      ) {
+        status = "warning";
+        mlClass = "harmful";
+        detectedSweeteners.push(item.matchedName);
+      } else if (
+        item.status === "beneficial" ||
+        CLEAN_PREMIUM_MARKERS.some((k) => tokLower.includes(k))
+      ) {
+        status = "safe";
+        mlClass = "beneficial";
+        detectedCleanMarkers.push(item.matchedName);
+      }
 
-    ingredientBreakdown.push({
-      name: tok.charAt(0).toUpperCase() + tok.slice(1),
-      status,
-      reason
+      ingredientBreakdown.push({
+        name: item.displayName,
+        raw: item.raw,
+        matchedName: item.matchedName,
+        similarity: item.similarity,
+        correctionMade: item.correctionMade,
+        unrecognized: item.unrecognized,
+        status,
+        mlClass,
+        reason,
+      });
     });
-  });
-
-  // Calculate dynamic Purity Score based on Category Rules
-  let score = 92;
-  if (category.includes("Bar")) {
-    score -= (detectedFillers.length * 18);
-    score -= (detectedSweeteners.some(s => s.includes("maltitol")) ? 22 : detectedSweeteners.length * 8);
-    score -= (detectedDyes.length * 12);
-  } else if (category.includes("Pre-Workout")) {
-    score -= (detectedBannedStims.length * 40);
-    score -= (detectedDyes.length * 15);
-    score -= (detectedSweeteners.length * 8);
   } else {
-    score -= (detectedAminoSpikes.length * 28);
-    score -= (detectedBannedStims.length * 35);
-    score -= (detectedFillers.length * 18);
-    score -= (detectedSweeteners.length * 8);
+    // Fallback basic tokenization if text had no standard section punctuation
+    const rawTokens = normalized.split(/[,;\n•|\t/:]+/).map((s) => s.trim()).filter((s) => s.length > 2);
+    rawTokens.forEach((tok) => {
+      let status = "safe";
+      let mlClass = "beneficial";
+      let reason = "Standard active nutrient";
+
+      if (AMINO_SPIKE_KEYWORDS.some((k) => tok.includes(k))) {
+        status = "danger";
+        mlClass = "harmful";
+        reason = "AMINO SPIKE: Cheap non-intact nitrogen inflation detected";
+        detectedAminoSpikes.push(tok);
+      } else if (BANNED_STIM_KEYWORDS.some((k) => tok.includes(k))) {
+        status = "danger";
+        mlClass = "banned_wada";
+        reason = "BANNED STIMULANT: Prohibited by WADA & tested athletic leagues";
+        detectedBannedStims.push(tok);
+      } else if (FILLER_KEYWORDS.some((k) => tok.includes(k))) {
+        status = "danger";
+        mlClass = "harmful";
+        reason = "CHEAP FILLER: Added maltodextrin/corn solids diluting purity";
+        detectedFillers.push(tok);
+      } else if (HARMFUL_DYES_PRESERVATIVES.some((k) => tok.includes(k))) {
+        status = "warning";
+        mlClass = "harmful";
+        reason = "SYNTHETIC COLOR/ADDITIVE: May cause gastrointestinal or allergic sensitivity";
+        detectedDyes.push(tok);
+      } else if (ARTIFICIAL_SWEETENERS.some((k) => tok.includes(k))) {
+        status = "warning";
+        mlClass = "harmful";
+        reason = "ARTIFICIAL SWEETENER: High-intensity chemical sweetener";
+        detectedSweeteners.push(tok);
+      } else if (CLEAN_PREMIUM_MARKERS.some((k) => tok.includes(k))) {
+        status = "safe";
+        mlClass = "beneficial";
+        reason = "HIGH PURITY: Lab-grade, clean bioavailable nutrient source";
+        detectedCleanMarkers.push(tok);
+      }
+
+      ingredientBreakdown.push({
+        name: tok.charAt(0).toUpperCase() + tok.slice(1),
+        raw: tok,
+        status,
+        mlClass,
+        reason,
+      });
+    });
   }
 
-  score += (detectedCleanMarkers.length * 4);
+  // Calculate dynamic Purity Score (used directly or as fallback when ML service is offline)
+  let score = 92;
+  if (category.includes("Bar")) {
+    score -= detectedFillers.length * 18;
+    score -= detectedSweeteners.some((s) => s.toLowerCase().includes("maltitol")) ? 22 : detectedSweeteners.length * 8;
+    score -= detectedDyes.length * 12;
+  } else if (category.includes("Pre-Workout")) {
+    score -= detectedBannedStims.length * 40;
+    score -= detectedDyes.length * 15;
+    score -= detectedSweeteners.length * 8;
+  } else {
+    score -= detectedAminoSpikes.length * 28;
+    score -= detectedBannedStims.length * 35;
+    score -= detectedFillers.length * 18;
+    score -= detectedSweeteners.length * 8;
+  }
+  if (parsed.proprietaryBlends.length > 0) {
+    score -= 8;
+  }
+
+  score += detectedCleanMarkers.length * 3;
   score = Math.max(15, Math.min(99, score));
 
   // Determine Risk Level & Clinical Verdicts
@@ -442,9 +538,9 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
     riskLevel = "danger";
     verdict = `Amino Spiking Alert: Free nitrogen compounds (${detectedAminoSpikes.slice(0, 2).join(", ")}) detected. True intact protein is far lower than claimed.`;
     verdictHindi = `अमीनो स्पाइकिंग चेतावनी: अतिरिक्त अमीनो एसिड द्वारा प्रोटीन की मात्रा को कृत्रिम रूप से बढ़ाया गया है।`;
-  } else if (detectedFillers.length > 0 || (category.includes("Bar") && detectedSweeteners.some(s => s.includes("maltitol")))) {
+  } else if (detectedFillers.length > 0 || (category.includes("Bar") && detectedSweeteners.some((s) => s.toLowerCase().includes("maltitol")))) {
     riskLevel = "warning";
-    verdict = `Moderate Quality: Contains heavy fillers or digestive irritants (${(detectedFillers[0] || detectedSweeteners[0])}).`;
+    verdict = `Moderate Quality: Contains heavy fillers or digestive irritants (${detectedFillers[0] || detectedSweeteners[0]}).`;
     verdictHindi = `मध्यम गुणवत्ता: इसमें सस्ते फिलर्स या पाचन को प्रभावित करने वाले तत्व मौजूद हैं।`;
   } else if (detectedSweeteners.length > 0 || detectedDyes.length > 0) {
     riskLevel = "warning";
@@ -452,58 +548,63 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
     verdictHindi = `सूचना: इसमें कृत्रिम मिठास या सिंथेटिक रंगों का प्रयोग किया गया है।`;
   }
 
-  // Extract or intelligently estimate nutrition values based on category and text
-  let extractedProtein = extractNutrientWithRegex(normalized, [/(\d+(?:\.\d+)?\s*g)\s*protein/i, /protein\s*[:\-]?\s*(\d+(?:\.\d+)?\s*g)/i], null);
-  let extractedCalories = extractNutrientWithRegex(normalized, [/(\d{2,3})\s*(?:kcal|calories)/i, /energy\s*[:\-]?\s*(\d{2,3})/i], null);
+  // OCR-tolerant macro extraction
+  const ocrMacros = extractMacrosFromOCR(rawText || "");
+  const mProtein = macroOverrides?.proteinG ?? ocrMacros.proteinG;
+  const mCalories = macroOverrides?.calories ?? ocrMacros.calories;
+  const mSugar = macroOverrides?.sugarG ?? ocrMacros.sugarG;
+  const mCarbs = macroOverrides?.carbsG ?? ocrMacros.carbsG;
+  const mFat = macroOverrides?.fatG ?? ocrMacros.fatG;
+  const mServing = macroOverrides?.servingSizeG ?? ocrMacros.servingSizeG;
 
-  let claimedProtein = extractedProtein || "24g per serving";
+  let claimedProtein = mProtein != null ? `${mProtein}g per serving` : "24g per serving";
   let actualProtein = riskLevel === "danger" ? "~40-55% True Intact Protein" : "90%+ Intact Bioavailability";
-  let calories = extractedCalories ? `${extractedCalories} kcal` : "120 kcal";
-  let carbs = "3g";
-  let sugar = "1g";
-  let fat = "1.5g";
-  let servingSize = "1 scoop (32g)";
+  let calories = mCalories != null ? `${mCalories} kcal` : "120 kcal";
+  let carbs = mCarbs != null ? `${mCarbs}g` : "3g";
+  let sugar = mSugar != null ? `${mSugar}g` : "1g";
+  let fat = mFat != null ? `${mFat}g` : "1.5g";
+  let servingSize = mServing != null ? `1 serving (${mServing}g)` : "1 scoop (32g)";
 
   if (category.includes("Bar") || productName.toLowerCase().includes("bar")) {
-    claimedProtein = extractedProtein || (productName.includes("22g") ? "22g Protein Bar" : "20g Protein Bar");
+    claimedProtein = mProtein != null ? `${mProtein}g Protein Bar` : (productName.includes("22g") ? "22g Protein Bar" : "20g Protein Bar");
     actualProtein = riskLevel === "danger" ? "11.2g (56% True Protein)" : "19.8g (90% Intact Whey & Milk Protein)";
-    calories = extractedCalories ? `${extractedCalories} kcal` : "210 kcal";
-    carbs = "20g (Clean Dietary Fiber)";
-    sugar = riskLevel === "safe" ? "2g (Zero Added Sugar)" : "8g Added Sugar";
-    fat = "6g (Zero Palm Oil)";
-    servingSize = "1 Bar (60g)";
+    calories = mCalories != null ? `${mCalories} kcal` : "210 kcal";
+    carbs = mCarbs != null ? `${mCarbs}g` : "20g (Clean Dietary Fiber)";
+    sugar = mSugar != null ? `${mSugar}g` : (riskLevel === "safe" ? "2g (Zero Added Sugar)" : "8g Added Sugar");
+    fat = mFat != null ? `${mFat}g` : "6g (Zero Palm Oil)";
+    servingSize = mServing != null ? `1 Bar (${mServing}g)` : "1 Bar (60g)";
   } else if (category.includes("Pre-Workout")) {
-    claimedProtein = "0g (Energy & Focus)";
+    claimedProtein = mProtein != null ? `${mProtein}g` : "0g (Energy & Focus)";
     actualProtein = "0g (Pure Active Pump)";
-    calories = extractedCalories ? `${extractedCalories} kcal` : "10 kcal";
-    carbs = "1g";
-    sugar = "0g Sugar";
-    fat = "0g";
-    servingSize = "1 scoop (10.5g)";
+    calories = mCalories != null ? `${mCalories} kcal` : "10 kcal";
+    carbs = mCarbs != null ? `${mCarbs}g` : "1g";
+    sugar = mSugar != null ? `${mSugar}g` : "0g Sugar";
+    fat = mFat != null ? `${mFat}g` : "0g";
+    servingSize = mServing != null ? `1 scoop (${mServing}g)` : "1 scoop (10.5g)";
   } else if (category.includes("RTD")) {
-    claimedProtein = extractedProtein || "25g Ready-to-Drink";
+    claimedProtein = mProtein != null ? `${mProtein}g Ready-to-Drink` : "25g Ready-to-Drink";
     actualProtein = "22.5g Milk & Whey Protein";
-    calories = extractedCalories ? `${extractedCalories} kcal` : "160 kcal";
-    carbs = "8g";
-    sugar = "4g";
-    fat = "2.5g";
+    calories = mCalories != null ? `${mCalories} kcal` : "160 kcal";
+    carbs = mCarbs != null ? `${mCarbs}g` : "8g";
+    sugar = mSugar != null ? `${mSugar}g` : "4g";
+    fat = mFat != null ? `${mFat}g` : "2.5g";
     servingSize = "1 Bottle (250ml)";
   } else if (category.includes("Creatine")) {
     claimedProtein = "5g Pure Creatine";
     actualProtein = riskLevel === "safe" ? "5.0g (99.9% Micronized)" : "3.8g Unpurified Mesh";
-    calories = "0 kcal";
+    calories = mCalories != null ? `${mCalories} kcal` : "0 kcal";
     carbs = "0g";
     sugar = "0g";
     fat = "0g";
-    servingSize = "1 scoop (5g)";
+    servingSize = mServing != null ? `1 scoop (${mServing}g)` : "1 scoop (5g)";
   } else if (category.includes("Butter")) {
-    claimedProtein = extractedProtein || "30g Protein / 100g";
+    claimedProtein = mProtein != null ? `${mProtein}g Protein` : "30g Protein / 100g";
     actualProtein = "28.5g Natural Peanut Protein";
-    calories = "190 kcal (per 32g)";
-    carbs = "6g";
-    sugar = "1g (No added sugar)";
-    fat = "16g (Healthy Fats / No Palm Oil)";
-    servingSize = "2 Tbsp (32g)";
+    calories = mCalories != null ? `${mCalories} kcal` : "190 kcal (per 32g)";
+    carbs = mCarbs != null ? `${mCarbs}g` : "6g";
+    sugar = mSugar != null ? `${mSugar}g` : "1g (No added sugar)";
+    fat = mFat != null ? `${mFat}g` : "16g (Healthy Fats / No Palm Oil)";
+    servingSize = mServing != null ? `1 serving (${mServing}g)` : "2 Tbsp (32g)";
   }
 
   return {
@@ -523,9 +624,16 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
     verdict,
     verdictHindi,
     rawText: rawText || "",
+    scanDetails: {
+      foundRegion: parsed.foundRegion,
+      sectionText: parsed.sectionText,
+      proprietaryBlends: parsed.proprietaryBlends,
+      corrections: parsed.corrections,
+      macrosExtracted: ocrMacros,
+    },
     ingredientsList: ingredientBreakdown.length > 0 ? ingredientBreakdown : [
-      { name: category.includes("Bar") ? "Whey Protein Crisps" : category.includes("Butter") ? "Roasted Peanuts" : "Whey Protein Concentrate", status: "safe", reason: "Active bioavailable nutrient" },
-      { name: "Sunflower Lecithin", status: "safe", reason: "Clean emulsifier" }
+      { name: category.includes("Bar") ? "Whey Protein Crisps" : category.includes("Butter") ? "Roasted Peanuts" : "Whey Protein Concentrate", status: "safe", mlClass: "beneficial", reason: "Active bioavailable nutrient" },
+      { name: "Sunflower Lecithin", status: "safe", mlClass: "beneficial", reason: "Clean emulsifier" }
     ],
     flags: {
       aminoSpiking: detectedAminoSpikes.length > 0,
@@ -538,101 +646,202 @@ export function analyzeSupplementIngredients(rawText, preferredName = null, pref
 }
 
 /**
- * Runs local heuristic parsing first, then enriches with the Python ML pipeline
+ * Runs local dictionary parsing first, then enriches with the Python ML pipeline
  * (/classify, /spiking, /score). Falls back cleanly to the local scorer if ML is down.
  */
-export async function analyzeTextWithMLFallback(rawText, preferredName = null, preferredBrand = null, fallbackSlot = 'A') {
-  const localResult = analyzeSupplementIngredients(rawText, preferredName, preferredBrand, fallbackSlot);
-  return await analyzeWithMLPipeline({ rawText, localResult });
+export async function analyzeTextWithMLFallback(
+  rawText,
+  preferredName = null,
+  preferredBrand = null,
+  fallbackSlot = 'A',
+  macroOverrides = null
+) {
+  const localResult = analyzeSupplementIngredients(
+    rawText,
+    preferredName,
+    preferredBrand,
+    fallbackSlot,
+    macroOverrides
+  );
+  // Send cleaned/matched section tokens to ML when label region was cleanly extracted
+  const textForML =
+    localResult.ingredientsList.length > 0
+      ? localResult.ingredientsList.map((i) => i.matchedName || i.name).join(', ')
+      : rawText;
+  return await analyzeWithMLPipeline({ rawText: textForML, localResult });
 }
 
-// Ultra-Fast Zero-Lag Mobile OCR Downsampler & Recognizer (Tesseract.js or EasyOCR)
+/**
+ * Re-runs dictionary matching + ML pipeline after a user edits/corrects ingredients inline.
+ */
+export async function reanalyzeEditedIngredients(editedNames, previousResult) {
+  const cleanNames = (editedNames || []).map((s) => String(s || '').trim()).filter(Boolean);
+  const editedText = `Ingredients: ${cleanNames.join(', ')}`;
+  const reAnalyzed = await analyzeTextWithMLFallback(
+    editedText,
+    previousResult?.name || null,
+    previousResult?.brand || null,
+    'A'
+  );
+
+  return {
+    ...previousResult,
+    ...reAnalyzed,
+    ocrMeta: previousResult?.ocrMeta || reAnalyzed.ocrMeta,
+    barcodeInfo: previousResult?.barcodeInfo || null,
+    rawText: previousResult?.rawText || editedText,
+    scanDetails: {
+      ...(previousResult?.scanDetails || {}),
+      corrections: reAnalyzed.scanDetails?.corrections || [],
+      userEdited: true,
+    },
+  };
+}
+
+/**
+ * Full Accuracy-First OCR + Barcode Shortcut + Preprocessing + Multi-Variant Worker + ML Pipeline.
+ */
 export async function performLiveOCRAndAnalyze(
   imageSource,
   fallbackSlot = 'A',
   fileNameHint = '',
-  ocrEngine = 'tesseract'
+  ocrEngine = 'tesseract',
+  options = {}
 ) {
-  let combinedText = fileNameHint ? `${fileNameHint}\n` : '';
+  const { cropRect = null, skipBarcode = false, fastLiveMode = false } = options || {};
   let ocrEngineUsed = ocrEngine === 'easyocr' ? 'easyocr' : 'tesseract';
   let ocrFallbackNotice = null;
+  let barcodeNotice = null;
 
   try {
-    // 1. Create a lightweight downsampled canvas to prevent mobile memory spikes & lag
-    const downsampledImage = await new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        const maxDim = 800; // Optimal size for high speed + OCR accuracy
-        let w = img.width;
-        let h = img.height;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) {
-            h = Math.round((h * maxDim) / w);
-            w = maxDim;
-          } else {
-            w = Math.round((w * maxDim) / h);
-            h = maxDim;
-          }
+    // 1. Barcode shortcut (only on full upload/frame when not manually cropped)
+    if (!skipBarcode && !cropRect) {
+      const barcode = await detectBarcodeFromCanvasOrImage(imageSource);
+      if (barcode) {
+        const off = await lookupBarcodeOpenFoodFacts(barcode);
+        if (off.found) {
+          const enrichedOff = await analyzeTextWithMLFallback(
+            `Ingredients: ${off.ingredientsText}`,
+            off.name,
+            off.brand,
+            fallbackSlot,
+            off.macros
+          );
+          return {
+            ...enrichedOff,
+            ocrEngineUsed: 'barcode_openfoodfacts',
+            barcodeInfo: { found: true, barcode, source: 'Open Food Facts' },
+            ocrMeta: {
+              confidence: 99,
+              perLineConfidence: [],
+              winningVariant: { id: 'barcode', label: `Open Food Facts (#${barcode})`, psm: 'N/A' },
+              variantStats: [],
+              skewAngle: 0,
+            },
+          };
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.onerror = () => resolve(imageSource);
-      img.src = imageSource;
-    });
-
-    let ocrText = "";
-
-    // 2A. Optional EasyOCR server extraction when selected
-    if (ocrEngineUsed === 'easyocr') {
-      try {
-        const easyRes = await extractTextWithEasyOCR(downsampledImage);
-        ocrText = easyRes?.text || "";
-      } catch (easyErr) {
-        console.warn("EasyOCR unavailable, falling back to Tesseract.js:", easyErr);
-        ocrEngineUsed = 'tesseract';
-        ocrFallbackNotice = "EasyOCR server unavailable — extracted text with Tesseract.js instead.";
+        barcodeNotice = off.message || 'Product not in database, scanning label instead';
       }
     }
 
-    // 2B. Tesseract.js in-browser WASM OCR (primary or fallback)
-    if (!ocrText && ocrEngineUsed === 'tesseract') {
-      const ocrPromise = (async () => {
-        const { createWorker } = await import('tesseract.js');
-        const worker = await createWorker('eng');
-        const ret = await worker.recognize(downsampledImage);
-        await worker.terminate();
-        return ret.data.text || "";
-      })();
+    // 2. Canvas Preprocessing: upscale/downscale, deskew, grayscale, high-contrast, Sauvola/Otsu
+    const preprocessed = await preprocessImageInBrowser(imageSource, cropRect);
+    let ocrMeta = {
+      confidence: 0,
+      perLineConfidence: [],
+      winningVariant: null,
+      variantStats: [],
+      skewAngle: preprocessed.skewAngle,
+    };
+    let ocrText = '';
 
-      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(""), 2500));
-      ocrText = await Promise.race([ocrPromise, timeoutPromise]);
+    // 3A. Optional EasyOCR server extraction
+    if (ocrEngineUsed === 'easyocr') {
+      try {
+        const hcVariant = preprocessed.variants[1] || preprocessed.variants[0];
+        const easyRes = await extractTextWithEasyOCR(hcVariant.dataUrl);
+        ocrText = easyRes?.text || '';
+        ocrMeta = {
+          confidence: ocrText.length > 10 ? 85 : 40,
+          perLineConfidence: (easyRes?.lines || []).map((t) => ({ text: t, confidence: 85 })),
+          winningVariant: { id: 'easyocr', label: 'EasyOCR Server (High-Contrast)', psm: 'auto' },
+          variantStats: [],
+          skewAngle: preprocessed.skewAngle,
+        };
+      } catch (easyErr) {
+        console.warn('EasyOCR unavailable, falling back to Tesseract.js:', easyErr);
+        ocrEngineUsed = 'tesseract';
+        ocrFallbackNotice = 'EasyOCR server unavailable — extracted text with Tesseract.js instead.';
+      }
     }
 
-    combinedText += ocrText;
+    // 3B. Persistent Singleton Tesseract.js Worker across preprocessed variants
+    if (!ocrText && ocrEngineUsed === 'tesseract') {
+      const timeoutMs = fastLiveMode ? 4500 : 16000;
+      const ocrPromise = recognizeWithVariants(preprocessed.variants, { fastMode: fastLiveMode });
+      const timeoutPromise = new Promise((resolve) =>
+        setTimeout(
+          () =>
+            resolve({
+              text: '',
+              confidence: 0,
+              perLineConfidence: [],
+              winningVariant: { id: 'timeout', label: 'Timeout', psm: '6' },
+              variantStats: [],
+            }),
+          timeoutMs
+        )
+      );
+
+      const tRes = await Promise.race([ocrPromise, timeoutPromise]);
+      ocrText = tRes.text || '';
+      ocrMeta = {
+        confidence: tRes.confidence || 0,
+        perLineConfidence: tRes.perLineConfidence || [],
+        winningVariant: tRes.winningVariant,
+        variantStats: tRes.variantStats || [],
+        skewAngle: preprocessed.skewAngle,
+      };
+    }
+
+    const combinedText = ocrText.trim().length > 3
+      ? ocrText
+      : (fileNameHint || '');
+
     if (combinedText.trim().length > 3) {
       const enriched = await analyzeTextWithMLFallback(combinedText, null, null, fallbackSlot);
-      return { ...enriched, ocrEngineUsed, ocrFallbackNotice };
+      return {
+        ...enriched,
+        ocrEngineUsed,
+        ocrFallbackNotice,
+        barcodeNotice,
+        ocrMeta,
+      };
     }
   } catch (err) {
-    console.warn("Fast OCR fallback handled cleanly:", err);
+    console.warn('OCR preprocessing pipeline error, falling back cleanly:', err);
   }
 
-  if (combinedText.trim().length > 3) {
-    const enriched = await analyzeTextWithMLFallback(combinedText, null, null, fallbackSlot);
-    return { ...enriched, ocrEngineUsed, ocrFallbackNotice };
-  }
-
-  // 3. Fallback slot-specific real authentic name
-  const fallbackText = fallbackSlot === 'B' 
-    ? "GNC Pro Performance 100% Whey Protein Indian Formulation Maltodextrin Sucralose" 
-    : "Bolt Nutrition 22g High-Protein Bar Whey Crisps Cocoa Almonds Clean Fiber";
+  // Fallback text if image was unreadable
+  const fallbackText =
+    fileNameHint && fileNameHint.trim().length > 3
+      ? fileNameHint
+      : fallbackSlot === 'B'
+      ? 'GNC Pro Performance 100% Whey Protein Indian Formulation Maltodextrin Sucralose'
+      : 'Bolt Nutrition 22g High-Protein Bar Whey Crisps Cocoa Almonds Clean Fiber';
 
   const enrichedFallback = await analyzeTextWithMLFallback(fallbackText, null, null, fallbackSlot);
-  return { ...enrichedFallback, ocrEngineUsed, ocrFallbackNotice };
+  return {
+    ...enrichedFallback,
+    ocrEngineUsed,
+    ocrFallbackNotice: ocrFallbackNotice || 'Low-clarity capture — retake photo in bright light for sharper label extraction.',
+    barcodeNotice,
+    ocrMeta: {
+      confidence: 35,
+      perLineConfidence: [],
+      winningVariant: { id: 'fallback', label: 'Fallback', psm: '6' },
+      variantStats: [],
+      skewAngle: 0,
+    },
+  };
 }

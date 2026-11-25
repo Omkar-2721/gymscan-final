@@ -166,21 +166,31 @@ export async function analyzeWithMLPipeline({ rawText, localResult }) {
     const scoreData = await scoreRes.json();
     const mlScore = Number(scoreData.score ?? localResult.purityScore);
 
-    // Map ML 4-class predictions back to legacy status too for backward compatibility
-    const mappedIngredientsList = mlItems.map((item) => ({
-      name: item.ingredient,
-      normalized: item.normalized,
-      mlClass: item.class,
-      confidence: item.confidence,
-      method: item.method,
-      status:
-        item.class === 'banned_wada' || item.class === 'harmful'
-          ? 'danger'
-          : item.class === 'neutral'
-          ? 'warning'
-          : 'safe',
-      reason: item.reason,
-    }));
+    // Map ML 4-class predictions back while preserving local dictionary fuzzy match metadata
+    const localIngredients = localResult.ingredientsList || [];
+    const mappedIngredientsList = mlItems.map((item, idx) => {
+      const localMatch = localIngredients[idx] || {};
+      return {
+        name: localMatch.unrecognized ? item.ingredient : (localMatch.name || item.ingredient),
+        raw: localMatch.raw || item.ingredient,
+        normalized: item.normalized,
+        mlClass: item.class,
+        confidence: item.confidence,
+        similarity: localMatch.similarity ?? null,
+        correctionMade: localMatch.correctionMade ?? null,
+        unrecognized: Boolean(localMatch.unrecognized && item.confidence < 0.65),
+        method: item.method,
+        status:
+          item.class === 'banned_wada' || item.class === 'harmful'
+            ? 'danger'
+            : item.class === 'neutral'
+            ? 'warning'
+            : 'safe',
+        reason: localMatch.unrecognized && item.confidence < 0.65
+          ? 'Unrecognized - tap to correct'
+          : item.reason,
+      };
+    });
 
     let riskLevel = 'safe';
     if (bannedCount > 0 || spikingData.spiking_risk === 'high' || mlScore < 55) {

@@ -1,0 +1,18 @@
+{
+  "id": "04_protein_bar",
+  "image": "04_protein_bar.png",
+  "expectedIngredients": [
+    "Whey Protein Isolate",
+    "Roasted Almonds",
+    "Maltitol",
+    "Palm Oil",
+    "Cocoa Butter",
+    "Soy Lecithin"
+  ],
+  "expectedMacros": {
+    "proteinG": 20,
+    "servingSizeG": 60,
+    "calories": 215,
+    "sugarG": 2
+  }
+}

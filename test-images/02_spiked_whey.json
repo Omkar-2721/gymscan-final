@@ -1,0 +1,18 @@
+{
+  "id": "02_spiked_whey",
+  "image": "02_spiked_whey.png",
+  "expectedIngredients": [
+    "Whey Protein Concentrate",
+    "Maltodextrin",
+    "Glycine",
+    "Taurine",
+    "Sucralose",
+    "Silicon Dioxide"
+  ],
+  "expectedMacros": {
+    "proteinG": 25,
+    "servingSizeG": 34,
+    "calories": 135,
+    "sugarG": 4
+  }
+}

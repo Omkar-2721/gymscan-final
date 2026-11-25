@@ -1,0 +1,16 @@
+{
+  "id": "03_preworkout_wada",
+  "image": "03_preworkout_wada.png",
+  "expectedIngredients": [
+    "Beta-Alanine",
+    "L-Citrulline",
+    "Caffeine Anhydrous",
+    "DMAA",
+    "Red 40",
+    "Acesulfame Potassium"
+  ],
+  "expectedMacros": {
+    "servingSizeG": 10,
+    "calories": 5
+  }
+}

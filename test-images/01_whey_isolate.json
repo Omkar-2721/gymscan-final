@@ -1,0 +1,17 @@
+{
+  "id": "01_whey_isolate",
+  "image": "01_whey_isolate.png",
+  "expectedIngredients": [
+    "Whey Protein Isolate",
+    "Cocoa Powder",
+    "Sunflower Lecithin",
+    "Stevia Leaf Extract",
+    "Sea Salt"
+  ],
+  "expectedMacros": {
+    "proteinG": 27,
+    "servingSizeG": 30,
+    "calories": 115,
+    "sugarG": 0
+  }
+}

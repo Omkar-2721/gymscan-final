@@ -1,0 +1,16 @@
+{
+  "id": "05_creatine_noisy",
+  "image": "05_creatine_noisy.png",
+  "expectedIngredients": [
+    "Creatine Monohydrate",
+    "Taurine",
+    "Aspartame",
+    "Citric Acid",
+    "Xanthan Gum",
+    "Silicon Dioxide"
+  ],
+  "expectedMacros": {
+    "servingSizeG": 8,
+    "calories": 0
+  }
+}
