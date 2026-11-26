@@ -1,0 +1,8 @@
+{
+  "label": "Non-Label Scenery Photo",
+  "expectBlocked": true,
+  "expectNonLabel": true,
+  "expectBanned": false,
+  "minScore": null,
+  "maxScore": null
+}

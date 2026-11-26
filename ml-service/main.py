@@ -72,27 +72,60 @@ DEFAULT_CLASS_REASONS = {
 }
 
 FEATURE_LABELS = {
-    "protein_per_serving_g": "Protein per serving (g)",
-    "serving_size_g": "Serving size (g)",
-    "protein_percent": "Protein density (%)",
+    "harmful_count": "Harmful / filler ingredients",
+    "banned_count": "WADA-prohibited substances",
+    "artificial_sweetener_count": "Artificial sweeteners",
+    "artificial_color_count": "Artificial food dyes",
     "sugar_g": "Sugar content (g)",
-    "amino_acid_ratio": "Intact EAA ratio",
-    "blend_transparency": "Label blend transparency",
-    "number_of_harmful_ingredients": "Harmful / filler ingredients",
-    "number_of_banned_ingredients": "WADA-prohibited substances",
-    "artificial_additive_count": "Artificial additives / dyes",
+    "protein_per_serving_g": "Protein per serving (g)",
+    "protein_percent": "Protein density (%)",
     "spiking_risk_probability": "Amino-spiking probability",
+    "blend_transparency": "Label blend transparency",
+    "unrecognized_ratio": "Unrecognized ingredient ratio",
+    "ocr_match_confidence": "OCR match confidence",
 }
 
+EXPECTED_SCORE_FEATURES = [
+    "harmful_count",
+    "banned_count",
+    "artificial_sweetener_count",
+    "artificial_color_count",
+    "sugar_g",
+    "protein_per_serving_g",
+    "protein_percent",
+    "spiking_risk_probability",
+    "blend_transparency",
+    "unrecognized_ratio",
+    "ocr_match_confidence",
+]
 
-def load_models():
+TRAINING_IN_PROGRESS = False
+
+
+def load_models(auto_train: bool = True):
+    global TRAINING_IN_PROGRESS
     cls_path = MODELS_DIR / "ingredient_classifier.joblib"
     spk_path = MODELS_DIR / "spiking_detector.joblib"
     scr_path = MODELS_DIR / "purity_scorer.joblib"
 
+    needs_train = not (cls_path.exists() and spk_path.exists() and scr_path.exists())
+    if not needs_train:
+        scr_check = joblib.load(scr_path)
+        if list(scr_check.get("features", [])) != EXPECTED_SCORE_FEATURES:
+            needs_train = True
+
+    if needs_train and auto_train and not TRAINING_IN_PROGRESS:
+        print("[GymScan ML] Model artifacts missing or outdated — auto-training on startup...")
+        TRAINING_IN_PROGRESS = True
+        try:
+            from train import main as run_training
+            run_training()
+        finally:
+            TRAINING_IN_PROGRESS = False
+
     if not (cls_path.exists() and spk_path.exists() and scr_path.exists()):
         raise RuntimeError(
-            "Trained ML models not found in /ml-service/models. Run 'python train.py' first."
+            "Trained ML models not found in /ml-service/models. Run 'npm run ml:setup' or 'python train.py'."
         )
 
     MODELS["classifier"] = joblib.load(cls_path)
@@ -103,14 +136,15 @@ def load_models():
 @app.on_event("startup")
 def startup_event():
     try:
-        load_models()
+        load_models(auto_train=True)
+        print("[GymScan ML] All 3 ML models loaded and ready.")
     except Exception as exc:
-        print(f"[GymScan ML Warning] Startup model load deferred: {exc}")
+        print(f"[GymScan ML Warning] Startup model load failed: {exc}")
 
 
 def ensure_models_ready():
     if any(v is None for v in MODELS.values()):
-        load_models()
+        load_models(auto_train=True)
 
 
 def get_easyocr_reader():
@@ -137,23 +171,28 @@ class SpikingRequest(BaseModel):
 
 
 class ScoreRequest(BaseModel):
-    protein_per_serving_g: float = 24.0
-    serving_size_g: float = 32.0
+    harmful_count: int = 0
+    banned_count: int = 0
+    artificial_sweetener_count: int = 0
+    artificial_color_count: int = 0
+    sugar_g: Optional[float] = None
+    protein_per_serving_g: Optional[float] = None
+    serving_size_g: Optional[float] = None
     protein_percent: Optional[float] = None
-    sugar_g: float = 1.0
-    amino_acid_ratio: float = 0.9
-    blend_transparency: float = 1.0
-    number_of_harmful_ingredients: int = 0
-    number_of_banned_ingredients: int = 0
-    artificial_additive_count: int = 0
     spiking_risk_probability: float = 0.05
+    blend_transparency: Optional[float] = None
+    unrecognized_ratio: float = 0.0
+    ocr_match_confidence: float = 1.0
+    recognized_count: Optional[int] = None
+    is_non_label: bool = False
 
 
 # ---------------------------- Endpoints ----------------------------
 
 @app.get("/health")
 def health():
-    loaded = all(v is not None for v in MODELS.values())
+    model_status = {k: (v is not None) for k, v in MODELS.items()}
+    loaded = all(model_status.values())
     try:
         import easyocr  # noqa: F401
         easyocr_installed = True
@@ -163,7 +202,10 @@ def health():
     return {
         "status": "ok" if loaded else "models_missing",
         "models_loaded": loaded,
+        "models": model_status,
+        "training_in_progress": TRAINING_IN_PROGRESS,
         "easyocr_available": easyocr_installed,
+        "disclaimer": "Informational only, not medical or legal advice.",
     }
 
 
@@ -267,6 +309,7 @@ def classify_ingredients(req: ClassifyRequest):
             confidence = round(min(0.99, max(clf_prob, sim_score / 100.0 * 0.96)), 3)
             reason = meta["notes"]
             matched_via = "exact" if sim_score == 100.0 else f"fuzzy ({int(sim_score)}%)"
+            recognized = True
         else:
             probs = pipe.predict_proba([norm])[0]
             best_idx = int(np.argmax(probs))
@@ -274,6 +317,7 @@ def classify_ingredients(req: ClassifyRequest):
             confidence = round(float(probs[best_idx]), 3)
             reason = DEFAULT_CLASS_REASONS.get(pred_class, "Classified by ML text model.")
             matched_via = "tfidf_ml"
+            recognized = confidence >= 0.68
 
         counts[pred_class] = counts.get(pred_class, 0) + 1
         results.append({
@@ -281,6 +325,7 @@ def classify_ingredients(req: ClassifyRequest):
             "normalized": norm,
             "class": pred_class,
             "confidence": confidence,
+            "recognized": recognized,
             "reason": reason,
             "method": matched_via,
         })
@@ -411,8 +456,12 @@ def detect_amino_spiking(req: SpikingRequest):
 @app.post("/score")
 def predict_purity_score(req: ScoreRequest):
     """
-    Predict 0-100 Purity / Health Score using the cross-validated best regressor
-    and compute per-feature occlusion contributions ("Why this score").
+    Predict 0-100 Purity / Health Score using the cross-validated best regressor,
+    treat missing data conservatively as risk, and enforce strict post-prediction hard rules:
+      - unrecognized_ratio > 0.40 or ocr_match_confidence < 0.50 -> blocked ("Not enough readable data - retake photo")
+      - any banned/WADA ingredient -> capped at 20 and verdict "BANNED / UNSAFE"
+      - high spiking risk (>= 0.65) -> capped at 45
+      - proprietary blend with hidden amounts (blend_transparency <= 0.35) -> -10 pts
     """
     ensure_models_ready()
     bundle = MODELS["scorer"]
@@ -420,33 +469,128 @@ def predict_purity_score(req: ScoreRequest):
     feature_cols = bundle["features"]
     feature_means = bundle["feature_means"]
 
-    serving_g = max(1.0, float(req.serving_size_g))
-    protein_g = max(0.0, float(req.protein_per_serving_g))
-    protein_pct = (
-        float(req.protein_percent)
-        if req.protein_percent is not None
-        else round((protein_g / serving_g) * 100.0, 2)
-    )
+    unrecognized_ratio = float(np.clip(req.unrecognized_ratio, 0.0, 1.0))
+    ocr_match_conf = float(np.clip(req.ocr_match_confidence, 0.0, 1.0))
+
+    # Conservative risk defaults when nutrition values are unreadable / missing
+    missing_macros = req.protein_per_serving_g is None or req.sugar_g is None
+    protein_g = max(0.0, float(req.protein_per_serving_g)) if req.protein_per_serving_g is not None else 10.0
+    serving_g = max(1.0, float(req.serving_size_g)) if req.serving_size_g is not None else 35.0
+    sugar_g = max(0.0, float(req.sugar_g)) if req.sugar_g is not None else 6.0
+    if req.protein_percent is not None:
+        protein_pct = float(np.clip(req.protein_percent, 0.0, 100.0))
+    elif req.protein_per_serving_g is None:
+        protein_pct = 28.5
+    else:
+        protein_pct = round(min(100.0, (protein_g / serving_g) * 100.0), 2)
+
+    blend_transparency = float(np.clip(req.blend_transparency, 0.0, 1.0)) if req.blend_transparency is not None else 0.45
+    harmful_count = max(0, int(req.harmful_count))
+    banned_count = max(0, int(req.banned_count))
+    sweetener_count = max(0, int(req.artificial_sweetener_count))
+    color_count = max(0, int(req.artificial_color_count))
+    spiking_prob = float(np.clip(req.spiking_risk_probability, 0.0, 1.0))
 
     input_row = {
+        "harmful_count": harmful_count,
+        "banned_count": banned_count,
+        "artificial_sweetener_count": sweetener_count,
+        "artificial_color_count": color_count,
+        "sugar_g": sugar_g,
         "protein_per_serving_g": protein_g,
-        "serving_size_g": serving_g,
         "protein_percent": protein_pct,
-        "sugar_g": max(0.0, float(req.sugar_g)),
-        "amino_acid_ratio": float(np.clip(req.amino_acid_ratio, 0.0, 1.0)),
-        "blend_transparency": float(np.clip(req.blend_transparency, 0.0, 1.0)),
-        "number_of_harmful_ingredients": max(0, int(req.number_of_harmful_ingredients)),
-        "number_of_banned_ingredients": max(0, int(req.number_of_banned_ingredients)),
-        "artificial_additive_count": max(0, int(req.artificial_additive_count)),
-        "spiking_risk_probability": float(np.clip(req.spiking_risk_probability, 0.0, 1.0)),
+        "spiking_risk_probability": spiking_prob,
+        "blend_transparency": blend_transparency,
+        "unrecognized_ratio": unrecognized_ratio,
+        "ocr_match_confidence": ocr_match_conf,
     }
+
+    # Block score ONLY when non-label or zero/insufficient readable ingredients (and no banned agent found)
+    insufficient_reads = (
+        req.is_non_label
+        or (banned_count == 0 and req.recognized_count is not None and req.recognized_count == 0)
+        or (banned_count == 0 and req.recognized_count is not None and req.recognized_count < 2 and ocr_match_conf < 0.45)
+        or (banned_count == 0 and req.recognized_count is None and unrecognized_ratio > 0.70)
+        or (banned_count == 0 and ocr_match_conf < 0.30)
+    )
+    if insufficient_reads:
+        reasons = []
+        if req.is_non_label:
+            reasons.append({
+                "label": "Non-label image detected",
+                "impact": 0,
+                "detail": "This doesn't look like a product label.",
+            })
+        elif req.recognized_count == 0:
+            reasons.append({
+                "label": "No supplement ingredients matched",
+                "impact": 0,
+                "detail": "Not enough readable data; retake a clearer photo of the Ingredients box.",
+            })
+        else:
+            reasons.append({
+                "label": f"Very low readability ({round(ocr_match_conf * 100)}%)",
+                "impact": 0,
+                "detail": "Not enough readable data; retake a clearer photo of the Ingredients box.",
+            })
+        return {
+            "score": None,
+            "score_blocked": True,
+            "verdict": "This doesn't look like a product label" if req.is_non_label else "Not enough readable data - retake photo",
+            "model_used": bundle["model_name"],
+            "features": input_row,
+            "top_contributors": [],
+            "why_this_score": reasons,
+            "disclaimer": "Informational only, not medical or legal advice. Check the official WADA list and your sport's anti-doping body.",
+        }
 
     full_df = pd.DataFrame([input_row])[feature_cols]
     raw_pred = float(model.predict(full_df)[0])
-    final_score = int(round(float(np.clip(raw_pred, 5.0, 99.0))))
+    adj_score = float(np.clip(raw_pred, 0.0, 96.0))
 
-    # SHAP-style baseline ablation contribution per feature:
-    # impact_i = pred(x) - pred(x with feature_i set to dataset mean)
+    why_this_score = []
+    if harmful_count > 0:
+        why_this_score.append({"label": f"{harmful_count} harmful/filler ingredient(s)", "impact": -round(harmful_count * 6.0, 1)})
+    if sweetener_count > 0:
+        why_this_score.append({"label": f"{sweetener_count} artificial sweetener(s)", "impact": -round(sweetener_count * 4.5, 1)})
+    if color_count > 0:
+        why_this_score.append({"label": f"{color_count} artificial color dye(s)", "impact": -round(color_count * 4.0, 1)})
+    if sugar_g > 3.0:
+        why_this_score.append({"label": f"High sugar ({sugar_g:.1f}g/serving)", "impact": -round(min(18.0, (sugar_g - 2.0) * 1.1), 1)})
+    if unrecognized_ratio > 0.05:
+        why_this_score.append({"label": f"Unrecognized tokens ({round(unrecognized_ratio * 100)}%)", "impact": -round(unrecognized_ratio * 30.0, 1)})
+    if missing_macros:
+        why_this_score.append({"label": "Missing/unreadable nutrition facts (risk penalty)", "impact": -6.0})
+    if protein_pct >= 75.0 and harmful_count == 0 and banned_count == 0 and spiking_prob < 0.3:
+        why_this_score.append({"label": f"High intact protein density ({protein_pct:.0f}%)", "impact": 8.0})
+
+    # Post-prediction hard rules
+    verdict = None
+    if blend_transparency <= 0.35:
+        adj_score = max(0.0, adj_score - 10.0)
+        why_this_score.append({"label": "Proprietary blend without exact amounts", "impact": -10.0})
+
+    if spiking_prob >= 0.65:
+        if adj_score > 45.0:
+            why_this_score.append({"label": "High amino-spiking risk cap (max 45)", "impact": round(45.0 - adj_score, 1)})
+        else:
+            why_this_score.append({"label": f"High amino-spiking probability ({round(spiking_prob * 100)}%)", "impact": -18.0})
+        adj_score = min(adj_score, 45.0)
+
+    if banned_count > 0:
+        pre_cap = adj_score
+        adj_score = min(adj_score, 20.0)
+        verdict = "BANNED / UNSAFE"
+        why_this_score.insert(0, {
+            "label": f"{banned_count} banned / WADA-prohibited substance(s) (capped at 20)",
+            "impact": round(adj_score - pre_cap, 1) if pre_cap > 20.0 else -round(banned_count * 35.0, 1),
+        })
+
+    final_score = int(round(float(np.clip(adj_score, 0.0, 96.0))))
+    if not verdict:
+        verdict = "Clean Formulation" if final_score >= 75 else "Average / Mixed Quality" if final_score >= 50 else "Low Purity / High Risk"
+
+    # SHAP-style baseline ablation contribution per feature
     contributors = []
     for col in feature_cols:
         baseline_row = dict(input_row)
@@ -465,8 +609,11 @@ def predict_purity_score(req: ScoreRequest):
 
     return {
         "score": final_score,
+        "score_blocked": False,
+        "verdict": verdict,
         "model_used": bundle["model_name"],
         "features": input_row,
-        "top_contributors": contributors[:5],
-        "disclaimer": "Informational only, not medical advice. Check the official WADA list for competition.",
+        "top_contributors": contributors[:6],
+        "why_this_score": why_this_score,
+        "disclaimer": "Informational only, not medical or legal advice. Check the official WADA list and your sport's anti-doping body.",
     }

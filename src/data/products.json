@@ -1,0 +1,98 @@
+[
+  {
+    "id": "swap-twt-isolate",
+    "sampleData": true,
+    "name": "100% Clean Unflavored Whey Isolate",
+    "brand": "The Whole Truth (Sample)",
+    "category": "Whey Isolate",
+    "purityScore": 92,
+    "priceINR": 2899,
+    "whyCleaner": "Zero artificial sweeteners, zero maltodextrin fillers, cold-filtered 90% isolate with sunflower lecithin.",
+    "keyHighlights": ["27g Protein / 30g scoop", "Stevia/Unflavored", "No Amino Spiking"],
+    "storeSearchUrl": "https://www.google.com/search?q=The+Whole+Truth+Unflavored+Whey+Isolate"
+  },
+  {
+    "id": "swap-isopure-zero",
+    "sampleData": true,
+    "name": "Zero Carb 100% Whey Protein Isolate",
+    "brand": "Isopure (Sample)",
+    "category": "Whey Isolate",
+    "purityScore": 90,
+    "priceINR": 3399,
+    "whyCleaner": "Ultra-filtered whey isolate with 0g sugar, sunflower lecithin, and zero synthetic dyes or free amino spiking.",
+    "keyHighlights": ["25g Protein / 29g scoop", "0g Sugar", "Informed-Choice Tested"],
+    "storeSearchUrl": "https://www.google.com/search?q=Isopure+Zero+Carb+Whey+Protein+Isolate"
+  },
+  {
+    "id": "swap-nakpro-stevia",
+    "sampleData": true,
+    "name": "Platinum Natural Whey Isolate (Stevia)",
+    "brand": "NAKPRO (Sample)",
+    "category": "Whey Isolate",
+    "purityScore": 88,
+    "priceINR": 2199,
+    "whyCleaner": "Sweetened with natural Stevia Leaf Extract plus Bromelain/Papain digestive enzymes; no artificial Acesulfame-K.",
+    "keyHighlights": ["28g Protein / 33g scoop", "Stevia Sweetened", "Digestive Enzymes"],
+    "storeSearchUrl": "https://www.google.com/search?q=NAKPRO+Platinum+Natural+Whey+Isolate+Stevia"
+  },
+  {
+    "id": "swap-fastup-plant",
+    "sampleData": true,
+    "name": "100% Vegan Pea & Brown Rice Isolate",
+    "brand": "Fast&Up (Sample)",
+    "category": "Plant Protein",
+    "purityScore": 89,
+    "priceINR": 1899,
+    "whyCleaner": "Dairy-free complete plant isolate blended with raw cacao and natural stevia, free of artificial colors or dairy.",
+    "keyHighlights": ["26g Vegan Protein", "Dairy & Soy Free", "Natural Stevia"],
+    "storeSearchUrl": "https://www.google.com/search?q=Fast%26Up+Plant+Protein+Isolate"
+  },
+  {
+    "id": "swap-creapure",
+    "sampleData": true,
+    "name": "Creapure 100% Micronized Creatine Monohydrate",
+    "brand": "PureSource Lab (Sample)",
+    "category": "Creatine",
+    "purityScore": 96,
+    "priceINR": 999,
+    "whyCleaner": "Single-ingredient German Creapure with zero artificial sweeteners, aspartame, or proprietary matrix dilution.",
+    "keyHighlights": ["5g Pure Creatine", "1 Ingredient Only", "WADA Clean"],
+    "storeSearchUrl": "https://www.google.com/search?q=Creapure+Micronized+Creatine+Monohydrate"
+  },
+  {
+    "id": "swap-cleandrive-pre",
+    "sampleData": true,
+    "name": "CleanDrive Transparent Endurance Pre-Workout",
+    "brand": "TrueForm Sports (Sample)",
+    "category": "Pre-Workout",
+    "purityScore": 84,
+    "priceINR": 1699,
+    "whyCleaner": "Full label transparency (L-Citrulline, Beta-Alanine, L-Theanine + moderate caffeine) with zero DMAA/DMHA/SARMs or dyes.",
+    "keyHighlights": ["Zero Proprietary Blends", "Natural Beetroot Color", "WADA Safe Stimulants"],
+    "storeSearchUrl": "https://www.google.com/search?q=Transparent+Clean+Pre+Workout+Informed+Sport"
+  },
+  {
+    "id": "swap-yogabar-clean",
+    "sampleData": true,
+    "name": "20g Whole-Food Protein Bar (Almond Fudge)",
+    "brand": "Yogabar (Sample)",
+    "category": "Protein Bar",
+    "purityScore": 82,
+    "priceINR": 120,
+    "whyCleaner": "Uses whey isolate, almond butter, and chicory fiber instead of gut-irritating maltitol or hydrogenated palm oil.",
+    "keyHighlights": ["20g Protein", "No Maltitol", "No Hydrogenated Oil"],
+    "storeSearchUrl": "https://www.google.com/search?q=Yogabar+20g+Protein+Bar+Almond"
+  },
+  {
+    "id": "swap-asitis-whey",
+    "sampleData": true,
+    "name": "Atom Pure Raw Whey Concentrate 80%",
+    "brand": "AS-IT-IS Nutrition (Sample)",
+    "category": "Whey Blend",
+    "purityScore": 85,
+    "priceINR": 1599,
+    "whyCleaner": "Unflavored single concentrate source with enzymes and zero synthetic sweeteners or carb fillers.",
+    "keyHighlights": ["24g Protein / 30g scoop", "Zero Sweeteners", "Budget Clean"],
+    "storeSearchUrl": "https://www.google.com/search?q=AS-IT-IS+Pure+Raw+Whey+Concentrate"
+  }
+]

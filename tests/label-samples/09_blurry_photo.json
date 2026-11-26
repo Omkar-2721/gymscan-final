@@ -1,0 +1,8 @@
+{
+  "label": "Blurry / Unreadable Label Photo",
+  "expectBlocked": true,
+  "expectNonLabel": false,
+  "expectBanned": false,
+  "minScore": null,
+  "maxScore": null
+}

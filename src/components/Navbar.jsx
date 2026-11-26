@@ -1,19 +1,38 @@
 import React, { useState } from 'react';
-import { Camera, GitCompare, History, CreditCard, Globe, Menu, X, User, Sun, Moon, LogOut } from 'lucide-react';
+import {
+  Camera,
+  GitCompare,
+  History,
+  CreditCard,
+  Globe,
+  Menu,
+  X,
+  User,
+  Sun,
+  Moon,
+  LogOut,
+  Database,
+  BookOpen,
+} from 'lucide-react';
 import { TRANSLATIONS } from '../data/translations';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ 
   onOpenScanner, 
+  onOpenDatabase,
   onOpenCompare, 
   onOpenHistory, 
+  onOpenEducation,
   onOpenPricing, 
   onOpenAuth, 
   currentLang, 
   setCurrentLang, 
   scanHistoryCount,
+  favoritesCount = 0,
   isDarkMode,
-  onToggleTheme
+  onToggleTheme,
+  mlHealth,
+  onRefreshMlHealth
 }) {
   const {
     user,
@@ -61,19 +80,27 @@ export default function Navbar({
           </a>
         </div>
 
-        {/* Desktop Island Navigation Links */}
-        <nav className="hidden md:flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-300 bg-black/5 dark:bg-black/40 rounded-full px-3 py-1 border border-black/5 dark:border-white/5">
+        {/* Desktop Island Navigation Links (Compact padding so 1280px has zero overflow) */}
+        <nav className="hidden md:flex items-center gap-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-black/5 dark:bg-black/40 rounded-full px-2 py-1 border border-black/5 dark:border-white/5">
           <button 
             onClick={onOpenScanner}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
           >
             <Camera className="w-3.5 h-3.5 text-rose-500" />
             <span>{t.scanner}</span>
           </button>
 
           <button 
+            onClick={onOpenDatabase}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+          >
+            <Database className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Database</span>
+          </button>
+
+          <button 
             onClick={onOpenCompare}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
           >
             <GitCompare className="w-3.5 h-3.5 text-rose-500" />
             <span>{t.compareMode}</span>
@@ -81,20 +108,28 @@ export default function Navbar({
 
           <button 
             onClick={onOpenHistory}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition relative cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition relative cursor-pointer whitespace-nowrap"
           >
             <History className="w-3.5 h-3.5 text-amber-500" />
             <span>{t.history}</span>
-            {scanHistoryCount > 0 && (
+            {(scanHistoryCount > 0 || favoritesCount > 0) && (
               <span className="px-1.5 py-0.2 text-[9px] font-black bg-rose-600 text-white rounded-full">
-                {scanHistoryCount}
+                {scanHistoryCount + favoritesCount}
               </span>
             )}
           </button>
 
           <button 
+            onClick={onOpenEducation}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-sky-400" />
+            <span>Learn</span>
+          </button>
+
+          <button 
             onClick={onOpenPricing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full hover:text-rose-600 dark:hover:text-rose-400 hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
           >
             <CreditCard className="w-3.5 h-3.5 text-emerald-500" />
             <span>{t.pricing}</span>
@@ -106,8 +141,38 @@ export default function Navbar({
           </button>
         </nav>
 
-        {/* Right Section: Theme Switcher, Language Pills & Sign In */}
+        {/* Right Section: ML Health Pill, Theme Switcher, Language Pills & Sign In */}
         <div className="flex items-center gap-2 sm:gap-3">
+
+          {mlHealth && (
+            <button
+              type="button"
+              onClick={() => onRefreshMlHealth?.()}
+              title={
+                mlHealth.online
+                  ? 'Python ML Service Connected (Models Loaded)'
+                  : `ML Service Offline (${mlHealth.status || 'unavailable'}) — Click to retry`
+              }
+              className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border transition cursor-pointer ${
+                mlHealth.checking
+                  ? 'bg-slate-500/15 text-slate-500 border-slate-500/30'
+                  : mlHealth.online
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
+                  : 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  mlHealth.checking
+                    ? 'bg-amber-400 animate-pulse'
+                    : mlHealth.online
+                    ? 'bg-emerald-500'
+                    : 'bg-red-500'
+                }`}
+              ></span>
+              <span>{mlHealth.checking ? 'ML...' : mlHealth.online ? 'ML Online' : 'ML Offline'}</span>
+            </button>
+          )}
           
           {/* Day / Dark Mode Toggle Switch */}
           <button
@@ -227,6 +292,14 @@ export default function Navbar({
           </button>
 
           <button 
+            onClick={() => { onOpenDatabase(); setMobileMenuOpen(false); }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-rose-500/10 font-bold text-sm text-left"
+          >
+            <Database className="w-4 h-4 text-emerald-500" />
+            <span>Supplement Database</span>
+          </button>
+
+          <button 
             onClick={() => { onOpenCompare(); setMobileMenuOpen(false); }}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-rose-500/10 font-bold text-sm text-left"
           >
@@ -239,7 +312,15 @@ export default function Navbar({
             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-rose-500/10 font-bold text-sm text-left"
           >
             <History className="w-4 h-4 text-amber-500" />
-            <span>{t.history} ({scanHistoryCount})</span>
+            <span>{t.history} & Saved ({scanHistoryCount})</span>
+          </button>
+
+          <button 
+            onClick={() => { onOpenEducation(); setMobileMenuOpen(false); }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-rose-500/10 font-bold text-sm text-left"
+          >
+            <BookOpen className="w-4 h-4 text-sky-400" />
+            <span>Learn Label Safety</span>
           </button>
 
           <button 

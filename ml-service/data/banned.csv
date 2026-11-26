@@ -1,0 +1,39 @@
+# NOTE: Informational only, modeled on public WADA Prohibited List categories. Must be re-checked against the official current WADA Prohibited List and your sport's anti-doping body.
+name,synonyms,category,severity,why_problem
+DMAA,"dmaa|1,3-dimethylamylamine|methylhexanamine|geranamine|geranium extract|geranium stem extract|geranium oil",WADA S6 Prohibited Stimulant,banned,Amphetamine-like stimulant banned in tested sports with severe cardiovascular risk
+DMBA,"dmba|amp citrate|1,3-dimethylbutylamine|4-amino-2-methylpentane citrate",WADA S6 Prohibited Stimulant,banned,Unapproved DMAA analogue prohibited by WADA
+DMHA,"dmha|octodrine|2-amino-6-methylheptane|2-aminoisoheptane|kigelia africana extract|juglans regia extract",WADA S6 Prohibited Stimulant,banned,Prohibited stimulant often disguised behind plant extracts
+Higenamine,"higenamine|norcoclaurine|nandina domestica|nelumbo nucifera",WADA S3 Beta-2 Agonist,banned,Prohibited beta-2 agonist causing tachycardia and arrhythmias
+Ephedrine,"ephedrine|ephedra|ephedra sinica|ma huang|ma huang extract|methylephedrine|pseudoephedrine",WADA S6 Prohibited Stimulant,banned,Prohibited sympathomimetic alkaloid linked to cardiac toxicity
+Sibutramine,"sibutramine|meridia|reductil|desmethylsibutramine",WADA S6 Stimulant / Withdrawn Drug,banned,Withdrawn prescription diet drug spiking illicit fat burners
+Oxilofrine,"oxilofrine|methylsynephrine|p-hydroxyephedrine",WADA S6 Prohibited Stimulant,banned,Prohibited vasopressor stimulant in sports testing
+BMPEA,"bmpea|beta-methylphenethylamine|acacia rigidula extract",WADA S6 Prohibited Stimulant,banned,Amphetamine isomer banned in athletic testing
+Modafinil,"modafinil|adrafinil|phenylpiracetam",WADA S6 Prohibited Stimulant,banned,Prohibited CNS wakefulness stimulant
+Clenbuterol,"clenbuterol|clenbuterol hcl|spiropent",WADA S1.2 Anabolic / Beta-2 Agonist,banned,Prohibited non-hormonal anabolic agent with cardiac risk
+Ostarine,"ostarine|mk-2866|mk 2866|mk2866|enobosarm|gtx-024",WADA S1.2 Prohibited SARM,banned,Unapproved anabolic SARM banned year-round by WADA
+Ligandrol,"ligandrol|lgd-4033|lgd 4033|lgd4033|vk5211",WADA S1.2 Prohibited SARM,banned,Prohibited SARM linked to liver injury and hormone suppression
+RAD-140,"rad-140|rad 140|rad140|testolone",WADA S1.2 Prohibited SARM,banned,Prohibited experimental anabolic SARM
+Andarine,"andarine|s-4|s4 sarm|gtx-007",WADA S1.2 Prohibited SARM,banned,Prohibited SARM causing vision disturbances and endocrine suppression
+Cardarine,"cardarine|gw501516|gw-501516|gw 501516|endurobol",WADA S4.4 Metabolic Modulator,banned,Abandoned carcinogenic PPAR-delta modulator prohibited by WADA
+YK-11,"yk-11|yk 11|yk11",WADA S1.2 Prohibited Steroidal SARM,banned,Methylated steroidal myostatin-inhibiting SARM
+Ibutamoren,"ibutamoren|mk-677|mk 677|mk677|nutrobal",WADA S2 GH Secretagogue,banned,Prohibited growth hormone secretagogue
+Stenabolic,"stenabolic|sr9009|sr-9009",WADA S4 Metabolic Modulator,banned,Prohibited Rev-ErbA metabolic modulator
+S-23,"s-23|s23 sarm|acp-105|acp105",WADA S1.2 Prohibited SARM,banned,Suppressive investigational SARMs banned by WADA
+Androstenedione,"androstenedione|4-androstenedione|4-ad|androstene",WADA S1.1 Anabolic Prohormone,banned,Direct steroid hormone precursor prohibited year-round
+1-Androstenediol,"1-androstenediol|1 androstenediol|1-ad|1-androsterone|1-andro",WADA S1.1 Anabolic Prohormone,banned,Designer prohormone prohibited under WADA S1
+DHEA,"dhea|dehydroepiandrosterone|7-keto dhea|prasterone",WADA S1.1 Endogenous Anabolic Agent,banned,Strictly prohibited under WADA S1 year-round (causes positive doping tests)
+Methasterone,"methasterone|superdrol|methyldrostanolone",WADA S1.1 Designer Steroid,banned,Oral designer steroid linked to severe cholestatic hepatotoxicity
+Trenbolone,"trenbolone|trenbolone acetate|trenavar",WADA S1.1 Anabolic Steroid,banned,Potent veterinary/synthetic anabolic steroid banned by WADA
+Methyltestosterone,"methyltestosterone|oxandrolone|stanozolol|boldenone|nandrolone|turinabol",WADA S1.1 Anabolic Steroid,banned,Controlled anabolic steroids prohibited by WADA
+Arimistane,"arimistane|androst-3,5-diene-7,17-dione|clomiphene|tamoxifen|letrozole|anastrozole|exemestane",WADA S4 Hormone Modulator,banned,Prohibited aromatase inhibitors and SERMs
+Furosemide,"furosemide|lasix",WADA S5 Loop Diuretic,banned,Prohibited masking agent and potent loop diuretic
+Hydrochlorothiazide,"hydrochlorothiazide|hctz|chlorothiazide",WADA S5 Thiazide Diuretic,banned,Prohibited diuretic masking agent
+Spironolactone,"spironolactone|triamterene|amiloride|bumetanide|acetazolamide",WADA S5 Diuretic,banned,Prohibited diuretics monitored in tested sports
+Tadalafil,"tadalafil|cialis|nortadalafil",Undeclared PDE5 Inhibitor,banned,Illegal prescription adulterant causing dangerous hypotension
+Sildenafil,"sildenafil|viagra|vardenafil|acetildenafil",Undeclared PDE5 Inhibitor,banned,Illegal prescription PDE5 adulterant in supplements
+Tribulus Terrestris,"tribulus|tribulus terrestris|puncture vine",Athlete Contamination Risk,contamination_risk,High risk of cross-contamination with undeclared prohormones
+Synephrine,"synephrine|p-synephrine|bitter orange|bitter orange extract|citrus aurantium",WADA Monitoring / Contamination Risk,contamination_risk,Sympathomimetic alkaloid frequently co-contaminated with prohibited amines
+Yohimbine,"yohimbine|yohimbe|yohimbe bark extract|alpha yohimbine|rauwolscine",Regulatory / Contamination Risk,contamination_risk,Restricted in several countries; variable alkaloid dosing risk
+Hordenine,"hordenine|phenylethylamine|beta-phenylethylamine",Contamination / Watchlist Risk,contamination_risk,Alkaloid on athletic federation watchlists
+Mucuna Pruriens,"mucuna pruriens|l-dopa|velvet bean extract",Contamination Caution,contamination_risk,Proprietary test-booster herb with frequent adulteration alerts
+Deer Antler Velvet,"deer antler velvet|velvet antler extract",WADA S2 IGF-1 Contamination Risk,contamination_risk,May contain contaminated growth-factor batches

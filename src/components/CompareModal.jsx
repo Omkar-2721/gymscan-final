@@ -2,14 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   GitCompare, X, CheckCircle2, ShieldAlert, Trophy, Sparkles, Share2, 
   Upload, Camera, ArrowRight, RefreshCw, Award, Activity, Zap, Check, 
-  AlertTriangle, Layers, Trash2, Eye, FileText, CheckSquare, Square, User
+  AlertTriangle, Layers, Trash2, Eye, FileText, CheckSquare, Square, User,
+  FileDown, Database
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
 import { useAuth } from '../context/AuthContext';
-import { performLiveOCRAndAnalyze, analyzeSupplementIngredients } from '../utils/analyzer';
+import {
+  performLiveOCRAndAnalyze,
+  analyzeTextWithMLFallback,
+  getScoredSupplementCatalog,
+} from '../utils/analyzer';
+import { downloadScanReportPDF } from '../utils/pdfReport';
 
-export default function CompareModal({ isOpen, onClose }) {
+export default function CompareModal({ isOpen, onClose, initialProdA = null, scanHistory = [] }) {
   const { user, requireAuth, consumeScan } = useAuth();
   const [selectedProfiles, setSelectedProfiles] = useState([
     'High Protein (Fitness Goal)',
@@ -18,8 +23,22 @@ export default function CompareModal({ isOpen, onClose }) {
 
   const [imgA, setImgA] = useState(null);
   const [imgB, setImgB] = useState(null);
-  const [prodA, setProdA] = useState(null);
+  const [prodA, setProdA] = useState(initialProdA);
   const [prodB, setProdB] = useState(null);
+  const [manualTextA, setManualTextA] = useState('');
+  const [manualTextB, setManualTextB] = useState('');
+  const [showManualA, setShowManualA] = useState(false);
+  const [showManualB, setShowManualB] = useState(false);
+
+  const catalogList = getScoredSupplementCatalog();
+
+  useEffect(() => {
+    if (isOpen && initialProdA) {
+      setProdA(initialProdA);
+      setImgA('/whey-protein-transparent.png');
+      setHasCompared(false);
+    }
+  }, [isOpen, initialProdA]);
 
   const [cameraActiveSlot, setCameraActiveSlot] = useState(null);
   const videoRef = useRef(null);
@@ -225,98 +244,101 @@ export default function CompareModal({ isOpen, onClose }) {
     }
   };
 
-  const handleLoadDemoProduct = (slot, product) => {
-    if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
+  const handleAnalyzeManualSlot = async (slot) => {
+    const text = slot === 'A' ? manualTextA : manualTextB;
+    if (!text.trim()) return;
+    if (!requireAuth("Please sign in with your email to compare supplements!")) return;
+
     if (slot === 'A') {
       setIsSlotScanningA(true);
-      setTimeout(() => {
-        setImgA(product.image || '/whey-protein-transparent.png');
-        setProdA(product);
+      try {
+        const res = await analyzeTextWithMLFallback(text, 'Custom Product A');
+        setProdA(res);
+        setImgA('/whey-protein-transparent.png');
+        setShowManualA(false);
+      } finally {
         setIsSlotScanningA(false);
-      }, 400);
+      }
     } else {
       setIsSlotScanningB(true);
-      setTimeout(() => {
-        setImgB(product.image || '/whey-protein-transparent.png');
-        setProdB(product);
+      try {
+        const res = await analyzeTextWithMLFallback(text, 'Custom Product B');
+        setProdB(res);
+        setImgB('/whey-protein-transparent.png');
+        setShowManualB(false);
+      } finally {
         setIsSlotScanningB(false);
-      }, 400);
+      }
     }
   };
 
-  // Check if both images are identical or same file length/data
-  const isImagesIdentical = imgA && imgB && (
-    imgA === imgB || 
-    Math.abs(imgA.length - imgB.length) < 50 || 
-    (prodA && prodB && prodA.id === prodB.id)
+  const handleLoadDemoProduct = (slot, product) => {
+    if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
+    if (slot === 'A') {
+      setImgA(product.image || '/whey-protein-transparent.png');
+      setProdA(product);
+      setShowManualA(false);
+    } else {
+      setImgB(product.image || '/whey-protein-transparent.png');
+      setProdB(product);
+      setShowManualB(false);
+    }
+  };
+
+  const isImagesIdentical = Boolean(
+    imgA &&
+      imgB &&
+      imgA === imgB &&
+      prodA &&
+      prodB &&
+      prodA.name === prodB.name
   );
 
   const handleRunComparison = async () => {
     if (!requireAuth("Please sign in with your email to unlock your 5 Free AI Supplement Scans!")) return;
-    if (!imgA || !imgB) {
-      alert('Please upload or take images for both Product A and Product B first.');
+    if ((!imgA && !prodA) || (!imgB && !prodB)) {
+      alert('Please select, paste, or upload images for both Product A and Product B first.');
       return;
     }
     if (!consumeScan()) return;
-    
+
     setIsAnalyzing(true);
     setScanStep(1);
-    setScanProgress(15);
+    setScanProgress(20);
 
-    // Multi-stage 3.5s (3500ms) pause and scanning animation
-    setTimeout(() => {
-      setScanStep(2);
-      setScanProgress(55);
-    }, 1100);
-
-    setTimeout(() => {
-      setScanStep(3);
-      setScanProgress(90);
-    }, 2300);
-
-    // Perform live OCR and vision analysis on actual images
     try {
       let finalA = prodA;
       let finalB = prodB;
 
-      if (isImagesIdentical) {
-        finalA = GNC_TIED_PRODUCT;
-        finalB = GNC_TIED_PRODUCT;
-      } else {
-        if (!finalA && imgA) {
-          finalA = await performLiveOCRAndAnalyze(imgA, 'A');
-        }
-        if (!finalB && imgB) {
-          finalB = await performLiveOCRAndAnalyze(imgB, 'B');
-        }
+      setScanStep(2);
+      setScanProgress(55);
+
+      if (!finalA && imgA) {
+        finalA = await performLiveOCRAndAnalyze(imgA, 'A');
+      }
+      if (!finalB && imgB) {
+        finalB = await performLiveOCRAndAnalyze(imgB, 'B');
       }
 
-      setTimeout(() => {
-        setProdA(finalA || SAMPLE_PRODUCTS[0]);
-        setProdB(finalB || SAMPLE_PRODUCTS[1]);
-        setScanProgress(100);
-        setIsAnalyzing(false);
-        setHasCompared(true);
+      setScanStep(3);
+      setScanProgress(100);
+      setProdA(finalA);
+      setProdB(finalB);
+      setIsAnalyzing(false);
+      setHasCompared(true);
 
-        try {
-          confetti({
-            particleCount: 120,
-            spread: 80,
-            origin: { y: 0.6 },
-            colors: ['#E11D48', '#10B981', '#F59E0B', '#3B82F6']
-          });
-        } catch (e) {}
-      }, 3500);
-
+      try {
+        confetti({
+          particleCount: 90,
+          spread: 75,
+          origin: { y: 0.6 },
+          colors: ['#E11D48', '#10B981', '#F59E0B', '#3B82F6'],
+        });
+      } catch (e) {}
     } catch (e) {
-      console.warn("Live analysis encountered error, applying parsed fallback:", e);
-      setTimeout(() => {
-        setProdA(prodA || SAMPLE_PRODUCTS[0]);
-        setProdB(prodB || SAMPLE_PRODUCTS[1]);
-        setScanProgress(100);
-        setIsAnalyzing(false);
-        setHasCompared(true);
-      }, 3500);
+      console.warn('Comparison analysis encountered an error:', e);
+      setIsAnalyzing(false);
+      setScanProgress(100);
     }
   };
 
@@ -325,18 +347,24 @@ export default function CompareModal({ isOpen, onClose }) {
     setImgB(null);
     setProdA(null);
     setProdB(null);
+    setManualTextA('');
+    setManualTextB('');
+    setShowManualA(false);
+    setShowManualB(false);
     setHasCompared(false);
     setIsAnalyzing(false);
     setScanProgress(0);
     setScanStep(1);
   };
 
-  const currentProdA = prodA || (isImagesIdentical ? GNC_TIED_PRODUCT : SAMPLE_PRODUCTS[0]);
-  const currentProdB = prodB || (isImagesIdentical ? GNC_TIED_PRODUCT : SAMPLE_PRODUCTS[1]);
-  const isTie = isImagesIdentical || (currentProdA?.purityScore === currentProdB?.purityScore);
-  const winningProduct = isTie ? currentProdA : ((currentProdA?.purityScore || 0) >= (currentProdB?.purityScore || 0) ? currentProdA : currentProdB);
-  const losingProduct = isTie ? currentProdB : ((currentProdA?.purityScore || 0) < (currentProdB?.purityScore || 0) ? currentProdA : currentProdB);
-  const scoreDiff = Math.abs((currentProdA?.purityScore || 0) - (currentProdB?.purityScore || 0));
+  const currentProdA = prodA;
+  const currentProdB = prodB;
+  const scoreA = currentProdA?.purityScore ?? -1;
+  const scoreB = currentProdB?.purityScore ?? -1;
+  const isTie = Boolean(currentProdA && currentProdB && (isImagesIdentical || scoreA === scoreB));
+  const winningProduct = isTie ? currentProdA : scoreA >= scoreB ? currentProdA : currentProdB;
+  const losingProduct = isTie ? currentProdB : scoreA < scoreB ? currentProdA : currentProdB;
+  const scoreDiff = Math.abs((scoreA < 0 ? 0 : scoreA) - (scoreB < 0 ? 0 : scoreB));
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(
@@ -597,25 +625,49 @@ export default function CompareModal({ isOpen, onClose }) {
             <input ref={fileInputA} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange('A', e)} />
             <input ref={cameraFileInputA} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange('A', e)} />
 
-            {/* Quick Demo Tub A Selection */}
-            <div className="pt-2">
-              <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-rose-300/60 uppercase block mb-1.5">
-                Or Quick Test with Preset Sample:
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleLoadDemoProduct('A', SAMPLE_PRODUCTS[0])}
-                  className="flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border border-rose-500/20 hover:border-rose-500 bg-black/20 text-rose-400 truncate cursor-pointer"
+            {/* Quick Catalog / Saved Picker & Manual Paste A */}
+            <div className="pt-2 space-y-2 font-sans">
+              <div className="flex items-center justify-between gap-2">
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const picked = [...scanHistory, ...catalogList].find((x) => x.id === e.target.value);
+                    if (picked) handleLoadDemoProduct('A', picked);
+                  }}
+                  className="flex-1 bg-black/10 dark:bg-black/60 border border-rose-500/25 rounded-xl px-2.5 py-1.5 text-[11px] text-maroon-950 dark:text-white outline-none cursor-pointer"
                 >
-                  🔴 Spiked Budget Whey
-                </button>
+                  <option value="">Pick Product A from Catalog / Saved...</option>
+                  {catalogList.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.brand} — {item.name} ({item.purityScore}/100)
+                    </option>
+                  ))}
+                </select>
                 <button
-                  onClick={() => handleLoadDemoProduct('A', SAMPLE_PRODUCTS[2])}
-                  className="flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border border-rose-500/20 hover:border-rose-500 bg-black/20 text-amber-400 truncate cursor-pointer"
+                  type="button"
+                  onClick={() => setShowManualA((v) => !v)}
+                  className="px-2.5 py-1.5 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-rose-500/20 text-[10px] font-bold text-maroon-950 dark:text-white cursor-pointer"
                 >
-                  ⚠️ Pre-Workout
+                  {showManualA ? 'Hide Paste' : 'Paste Text'}
                 </button>
               </div>
+              {showManualA && (
+                <div className="space-y-1.5">
+                  <textarea
+                    value={manualTextA}
+                    onChange={(e) => setManualTextA(e.target.value)}
+                    placeholder="Paste Product A Ingredients..."
+                    className="w-full h-16 bg-black/5 dark:bg-black/70 border border-rose-500/25 rounded-xl p-2 text-[11px] font-mono text-maroon-950 dark:text-white outline-none resize-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAnalyzeManualSlot('A')}
+                    className="w-full py-1.5 rounded-lg bg-rose-600 text-white font-bold text-[10px] uppercase cursor-pointer"
+                  >
+                    Load Product A Ingredients
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -722,25 +774,49 @@ export default function CompareModal({ isOpen, onClose }) {
             <input ref={fileInputB} type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange('B', e)} />
             <input ref={cameraFileInputB} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileChange('B', e)} />
 
-            {/* Quick Demo Tub B Selection */}
-            <div className="pt-2">
-              <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-rose-300/60 uppercase block mb-1.5">
-                Or Quick Test with Preset Sample:
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleLoadDemoProduct('B', SAMPLE_PRODUCTS[1])}
-                  className="flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border border-emerald-500/30 hover:border-emerald-500 bg-black/20 text-emerald-400 truncate cursor-pointer"
+            {/* Quick Catalog / Saved Picker & Manual Paste B */}
+            <div className="pt-2 space-y-2 font-sans">
+              <div className="flex items-center justify-between gap-2">
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const picked = [...scanHistory, ...catalogList].find((x) => x.id === e.target.value);
+                    if (picked) handleLoadDemoProduct('B', picked);
+                  }}
+                  className="flex-1 bg-black/10 dark:bg-black/60 border border-emerald-500/25 rounded-xl px-2.5 py-1.5 text-[11px] text-maroon-950 dark:text-white outline-none cursor-pointer"
                 >
-                  🟢 Pure Whey Isolate
-                </button>
+                  <option value="">Pick Product B from Catalog / Saved...</option>
+                  {catalogList.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.brand} — {item.name} ({item.purityScore}/100)
+                    </option>
+                  ))}
+                </select>
                 <button
-                  onClick={() => handleLoadDemoProduct('B', SAMPLE_PRODUCTS[3])}
-                  className="flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border border-cyan-500/30 hover:border-cyan-500 bg-black/20 text-cyan-400 truncate cursor-pointer"
+                  type="button"
+                  onClick={() => setShowManualB((v) => !v)}
+                  className="px-2.5 py-1.5 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-emerald-500/20 text-[10px] font-bold text-maroon-950 dark:text-white cursor-pointer"
                 >
-                  🧪 Pure Creatine
+                  {showManualB ? 'Hide Paste' : 'Paste Text'}
                 </button>
               </div>
+              {showManualB && (
+                <div className="space-y-1.5">
+                  <textarea
+                    value={manualTextB}
+                    onChange={(e) => setManualTextB(e.target.value)}
+                    placeholder="Paste Product B Ingredients..."
+                    className="w-full h-16 bg-black/5 dark:bg-black/70 border border-emerald-500/25 rounded-xl p-2 text-[11px] font-mono text-maroon-950 dark:text-white outline-none resize-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAnalyzeManualSlot('B')}
+                    className="w-full py-1.5 rounded-lg bg-emerald-500 text-black font-bold text-[10px] uppercase cursor-pointer"
+                  >
+                    Load Product B Ingredients
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -800,13 +876,25 @@ export default function CompareModal({ isOpen, onClose }) {
                   </h2>
                 </div>
 
-                <button
-                  onClick={handleShareWhatsApp}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-black font-black text-xs uppercase tracking-wider hover:bg-emerald-400 transition shadow-lg cursor-pointer shrink-0"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Share on WhatsApp</span>
-                </button>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  {winningProduct && (
+                    <button
+                      type="button"
+                      onClick={() => downloadScanReportPDF(winningProduct)}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-black text-xs uppercase tracking-wider cursor-pointer"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      <span>Winner PDF</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleShareWhatsApp}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-black font-black text-xs uppercase tracking-wider hover:bg-emerald-400 transition shadow-lg cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Share on WhatsApp</span>
+                  </button>
+                </div>
               </div>
 
               <div>

@@ -1,0 +1,8 @@
+{
+  "label": "NITRO WHEY PRO 25G",
+  "minScore": 0,
+  "maxScore": 45,
+  "expectBanned": false,
+  "expectSpiking": true,
+  "expectBlocked": false
+}

@@ -57,26 +57,54 @@ SPIKING_FEATURES = [
 ]
 
 SCORE_FEATURES = [
-    "protein_per_serving_g",
-    "serving_size_g",
-    "protein_percent",
+    "harmful_count",
+    "banned_count",
+    "artificial_sweetener_count",
+    "artificial_color_count",
     "sugar_g",
-    "amino_acid_ratio",
-    "blend_transparency",
-    "number_of_harmful_ingredients",
-    "number_of_banned_ingredients",
-    "artificial_additive_count",
+    "protein_per_serving_g",
+    "protein_percent",
     "spiking_risk_probability",
+    "blend_transparency",
+    "unrecognized_ratio",
+    "ocr_match_confidence",
 ]
 
 
 def ensure_datasets():
-    if not (DATA_DIR / "ingredients.csv").exists():
-        build_ingredients_dataset()
+    build_ingredients_dataset()
     if not (DATA_DIR / "spiking.csv").exists():
         build_spiking_dataset(n_rows=600)
-    if not (DATA_DIR / "scores.csv").exists():
-        build_scores_dataset(n_rows=800)
+
+    scores_path = DATA_DIR / "scores.csv"
+    rebuild_scores = not scores_path.exists()
+    if not rebuild_scores:
+        try:
+            existing_cols = set(pd.read_csv(scores_path, nrows=2).columns)
+            if not set(SCORE_FEATURES).issubset(existing_cols):
+                rebuild_scores = True
+        except Exception:
+            rebuild_scores = True
+    if rebuild_scores:
+        build_scores_dataset(n_rows=1000)
+
+
+def _load_banned_rows():
+    banned_path = DATA_DIR / "banned.csv"
+    if not banned_path.exists():
+        return []
+    df_b = pd.read_csv(banned_path, comment="#")
+    extra_rows = []
+    for _, r in df_b.iterrows():
+        cls = "banned_wada" if str(r.get("severity", "")).strip() == "banned" else "harmful"
+        note = f"[{r.get('category', 'Risk')}] {r.get('why_problem', '')}".strip()
+        names = [str(r.get("name", "")).strip()] + [
+            s.strip() for s in str(r.get("synonyms", "")).split("|") if s.strip()
+        ]
+        for nm in names:
+            if nm:
+                extra_rows.append({"ingredient": nm, "class": cls, "notes": note})
+    return extra_rows
 
 
 def train_ingredient_classifier():
@@ -85,8 +113,12 @@ def train_ingredient_classifier():
     print("=" * 65)
 
     df = pd.read_csv(DATA_DIR / "ingredients.csv")
+    banned_extra = _load_banned_rows()
+    if banned_extra:
+        df = pd.concat([df, pd.DataFrame(banned_extra)], ignore_index=True)
+
     df["normalized"] = df["ingredient"].astype(str).apply(normalize_ingredient)
-    df = df[df["normalized"].str.len() > 0].drop_duplicates(subset=["normalized"]).reset_index(drop=True)
+    df = df[df["normalized"].str.len() > 0].drop_duplicates(subset=["normalized"], keep="last").reset_index(drop=True)
 
     X = df["normalized"].values
     y = df["class"].values
@@ -319,11 +351,24 @@ def train_score_regressor():
     })
     eval_df.to_csv(ARTIFACTS_DIR / "score_predictions_holdout.csv", index=False)
 
+    # Print ASCII score histogram across 0-100 bins
+    bins = list(range(0, 101, 10))
+    hist_counts, hist_edges = np.histogram(y.values, bins=bins)
+    histogram_dict = {}
+    print("\nTraining Score Distribution Histogram (scores.csv, n=%d):" % len(y))
+    for i in range(len(hist_counts)):
+        label = f"{int(hist_edges[i]):02d}-{int(hist_edges[i + 1]):03d}"
+        cnt = int(hist_counts[i])
+        histogram_dict[label] = cnt
+        bar = "#" * max(1, int(round(cnt / max(hist_counts) * 28))) if cnt > 0 else ""
+        print(f"  {label}: {cnt:4d} {bar}")
+
     return {
         "selected_model": best_name,
         "dataset_rows": int(len(df)),
         "comparison": comparison,
         "feature_importances": importances,
+        "score_histogram": histogram_dict,
     }
 
 

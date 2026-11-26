@@ -5,13 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:web-wait": "node scripts/wait-for-ml.mjs",
     "dev:server": "npm --prefix server run dev",
     "server": "npm --prefix server run start",
+    "ml:setup": "node scripts/ml-setup.mjs",
+    "ml:train": "node -e \"const fs=require('fs'),{spawnSync}=require('child_process');const py=fs.existsSync('ml-service/.venv/Scripts/python.exe')?'ml-service/.venv/Scripts/python.exe':fs.existsSync('ml-service/.venv/bin/python')?'ml-service/.venv/bin/python':'python';const r=spawnSync(py,['train.py'],{cwd:'ml-service',stdio:'inherit'});process.exit(r.status??0);\"",
     "dev:ml": "node -e \"const fs=require('fs'),{spawn}=require('child_process');const py=fs.existsSync('ml-service/.venv/Scripts/python.exe')?'ml-service/.venv/Scripts/python.exe':fs.existsSync('ml-service/.venv/bin/python')?'ml-service/.venv/bin/python':'python';const p=spawn(py,['-m','uvicorn','main:app','--app-dir','ml-service','--host','127.0.0.1','--port','8000','--reload'],{stdio:'inherit'});p.on('exit',c=>process.exit(c??0));\"",
-    "dev:all": "concurrently -n WEB,API,ML -c cyan,magenta,green \"npm run dev\" \"npm run dev:server\" \"npm run dev:ml\"",
+    "dev:all": "concurrently -n ML,API,WEB -c green,magenta,cyan \"npm run dev:ml\" \"npm run dev:server\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview",
-    "test:ocr": "node scripts/test-ocr.mjs"
+    "test:ocr": "node scripts/test-ocr.mjs",
+    "test:scoring": "node scripts/test-scoring.mjs",
+    "test:scan": "node scripts/test-scan.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",

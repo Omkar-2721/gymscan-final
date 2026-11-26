@@ -1,19 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import LiveMarqueeTicker from './components/LiveMarqueeTicker';
 import StatsTestimonials from './components/StatsTestimonials';
 import BentoFeatures from './components/BentoFeatures';
-import ScannerTool from './components/ScannerTool';
-import CompareModal from './components/CompareModal';
-import HistoryModal from './components/HistoryModal';
-import PricingModal from './components/PricingModal';
-import PitchDeckModal from './components/PitchDeckModal';
-import AuthModal from './components/AuthModal';
 import Footer from './components/Footer';
-import { Camera, Sparkles, Dumbbell, ShieldCheck, Zap } from 'lucide-react';
 import { SAMPLE_PRODUCTS } from './data/sampleProducts';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { checkMLHealth } from './utils/mlService';
+import { readSharedReportFromUrl } from './utils/pdfReport';
+
+// Lazy-load heavy modals (tesseract OCR, zxing barcode, catalog, compare, PDF, pricing)
+// so the landing page loads instantly with minimal initial JS.
+const ScannerTool = lazy(() => import('./components/ScannerTool'));
+const CompareModal = lazy(() => import('./components/CompareModal'));
+const HistoryModal = lazy(() => import('./components/HistoryModal'));
+const PricingModal = lazy(() => import('./components/PricingModal'));
+const PitchDeckModal = lazy(() => import('./components/PitchDeckModal'));
+const AuthModal = lazy(() => import('./components/AuthModal'));
+const DatabaseModal = lazy(() => import('./components/DatabaseModal'));
+const EducationModal = lazy(() => import('./components/EducationModal'));
 
 function BottomCTA({ onOpenScanner, onOpenPricing }) {
   const ctaRef = useRef(null);
@@ -22,8 +28,7 @@ function BottomCTA({ onOpenScanner, onOpenPricing }) {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting) setIsVisible(true);
+        if (entries[0]?.isIntersecting) setIsVisible(true);
       },
       { threshold: 0.15 }
     );
@@ -34,32 +39,28 @@ function BottomCTA({ onOpenScanner, onOpenPricing }) {
   }, []);
 
   return (
-    <section ref={ctaRef} className="py-28 relative overflow-hidden border-t border-rose-500/20 text-center font-josefin">
-      <div className="absolute inset-0 bg-gradient-to-b from-rose-950/10 via-maroon-900/10 to-transparent -z-10"></div>
-      <div className={`max-w-5xl mx-auto px-4 relative z-10 space-y-8 transition-all duration-700 transform ${
-        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+    <section ref={ctaRef} className="py-20 sm:py-24 relative overflow-hidden border-t border-rose-500/20 text-center font-josefin">
+      <div className={`max-w-4xl mx-auto px-4 relative z-10 space-y-6 transition-all duration-500 transform ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
       }`}>
-        <h2 className="text-[11vw] md:text-[7vw] font-black tracking-tighter leading-none text-maroon-950 dark:text-white opacity-95">
-          START <br />
-          <span className="text-gradient-maroon">
-            GYM SCANNING.
-          </span>
+        <h2 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight text-maroon-950 dark:text-white">
+          Stop Guessing. <span className="text-gradient-maroon">Audit Every Scoop.</span>
         </h2>
-        <p className="text-slate-600 dark:text-rose-100/70 max-w-xl mx-auto text-sm sm:text-base font-sans font-medium">
-          Join thousands of bodybuilders, powerlifters, and everyday lifters protecting their wallet and kidneys from adulterated supplements.
+        <p className="text-slate-600 dark:text-rose-100/75 max-w-xl mx-auto text-sm sm:text-base font-sans">
+          Verify true protein purity, detect amino spiking, and screen for WADA-prohibited substances in seconds.
         </p>
-        <div className="flex flex-col sm:flex-row justify-center gap-4 items-center font-sans">
+        <div className="flex flex-col sm:flex-row justify-center gap-3 items-center font-sans">
           <button
             onClick={onOpenScanner}
-            className="w-full sm:w-auto rounded-full bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 text-white px-10 py-5 font-black text-base sm:text-lg hover:scale-105 transition-transform duration-300 shadow-[0_0_40px_rgba(225,29,72,0.4)] cursor-pointer"
+            className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-rose-600 to-amber-500 text-white px-8 py-4 font-black text-sm sm:text-base hover:opacity-95 transition shadow-lg cursor-pointer"
           >
-            Scan Your Supplement Now (5 Free Scans)
+            Scan Supplement Now (5 Free Daily)
           </button>
           <button
             onClick={onOpenPricing}
-            className="w-full sm:w-auto rounded-full glass-card-neo text-slate-800 dark:text-white px-10 py-5 font-bold text-base sm:text-lg hover:border-rose-500/40 transition-colors duration-300 cursor-pointer"
+            className="w-full sm:w-auto rounded-2xl glass-card-neo text-slate-800 dark:text-white px-8 py-4 font-bold text-sm sm:text-base hover:border-rose-500/40 transition cursor-pointer"
           >
-            View Pro Lifter Pricing
+            View Plans & Pricing
           </button>
         </div>
       </div>
@@ -71,6 +72,7 @@ function AppContent() {
   const {
     isAuthModalOpen,
     setIsAuthModalOpen,
+    showCelebrationModal,
     requireAuth,
     user,
     isPricingOpen,
@@ -82,6 +84,44 @@ function AppContent() {
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPitchOpen, setIsPitchOpen] = useState(false);
+  const [isDatabaseOpen, setIsDatabaseOpen] = useState(false);
+  const [isEducationOpen, setIsEducationOpen] = useState(false);
+  const [inspectedScan, setInspectedScan] = useState(null);
+  const [comparePreloadA, setComparePreloadA] = useState(null);
+  const [mlHealth, setMlHealth] = useState({ online: false, modelsLoaded: false, checking: true, status: 'checking' });
+
+  const refreshMlHealth = async () => {
+    setMlHealth((prev) => ({ ...prev, checking: true }));
+    const res = await checkMLHealth();
+    setMlHealth({ ...res, checking: false });
+    return res;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    let retries = 0;
+
+    const probe = async () => {
+      const res = await checkMLHealth();
+      if (cancelled) return;
+      setMlHealth({ ...res, checking: false });
+      // While FastAPI boots alongside Vite in dev:all, retry smoothly a few times
+      if (!res.online && retries < 6) {
+        retries += 1;
+        setTimeout(probe, 2500);
+      }
+    };
+
+    probe();
+    const shared = readSharedReportFromUrl();
+    if (shared) {
+      setInspectedScan(shared);
+      setIsScannerOpen(true);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Dark / Day Mode State
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -104,24 +144,47 @@ function AppContent() {
     } catch (e) {}
   }, [isDarkMode]);
 
-  const toggleTheme = () => {
-    setIsDarkMode(prev => !prev);
-  };
+  const toggleTheme = () => setIsDarkMode((prev) => !prev);
+
+  const historyKey = user?.email ? `gymscan_history_${user.email}` : 'gymscan_history_guest';
+  const favoritesKey = user?.email ? `gymscan_favorites_${user.email}` : 'gymscan_favorites_guest';
 
   const [scanHistory, setScanHistory] = useState(() => {
     try {
-      const saved = localStorage.getItem('gymscan_history');
-      return saved ? JSON.parse(saved) : [SAMPLE_PRODUCTS[0], SAMPLE_PRODUCTS[1]];
+      const saved = localStorage.getItem(historyKey) || localStorage.getItem('gymscan_history');
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      return [SAMPLE_PRODUCTS[0], SAMPLE_PRODUCTS[1]];
+      return [];
     }
   });
 
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const saved = localStorage.getItem(favoritesKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const savedHist = localStorage.getItem(historyKey);
+      setScanHistory(savedHist ? JSON.parse(savedHist) : []);
+      const savedFav = localStorage.getItem(favoritesKey);
+      setFavorites(savedFav ? JSON.parse(savedFav) : []);
+    } catch (e) {
+      setScanHistory([]);
+      setFavorites([]);
+    }
+  }, [historyKey, favoritesKey]);
+
   const handleSaveToHistory = (item) => {
+    if (!item || item.isSharedSnapshot) return;
     setScanHistory((prev) => {
-      const updated = [item, ...prev.filter(x => x.name !== item.name)];
+      const updated = [item, ...prev.filter((x) => x.name !== item.name)].slice(0, 50);
       try {
-        localStorage.setItem('gymscan_history', JSON.stringify(updated));
+        localStorage.setItem(historyKey, JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });
@@ -130,13 +193,47 @@ function AppContent() {
   const handleClearHistory = () => {
     setScanHistory([]);
     try {
-      localStorage.removeItem('gymscan_history');
+      localStorage.removeItem(historyKey);
     } catch (e) {}
+  };
+
+  const handleToggleFavorite = (item) => {
+    if (!item) return;
+    const itemId = item.id || item.name;
+    setFavorites((prev) => {
+      const exists = prev.some((f) => (f.id || f.name) === itemId);
+      const updated = exists
+        ? prev.filter((f) => (f.id || f.name) !== itemId)
+        : [{ ...item, savedAt: new Date().toISOString() }, ...prev];
+      try {
+        localStorage.setItem(favoritesKey, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const handleInspectResult = (item) => {
+    setIsDatabaseOpen(false);
+    setIsHistoryOpen(false);
+    setInspectedScan(item);
+    setIsScannerOpen(true);
+  };
+
+  const handleSendToCompare = (item) => {
+    setIsScannerOpen(false);
+    setIsDatabaseOpen(false);
+    setIsHistoryOpen(false);
+    setComparePreloadA(item);
+    if (!user) {
+      requireAuth('Please sign in with your email to compare supplements!');
+      return;
+    }
+    setIsCompareOpen(true);
   };
 
   const handleOpenScannerProtected = () => {
     if (!user) {
-      requireAuth("Please sign in with your email to unlock your 5 Free Daily AI Supplement Scans!");
+      requireAuth('Please sign in with your email to unlock your 5 Free Daily AI Supplement Scans!');
       return;
     }
     setIsScannerOpen(true);
@@ -144,7 +241,7 @@ function AppContent() {
 
   const handleOpenCompareProtected = () => {
     if (!user) {
-      requireAuth("Please sign in with your email to unlock your 5 Free Daily AI Supplement Scans!");
+      requireAuth('Please sign in with your email to unlock your 5 Free Daily AI Supplement Scans!');
       return;
     }
     setIsCompareOpen(true);
@@ -152,96 +249,136 @@ function AppContent() {
 
   return (
     <div className="min-h-screen transition-colors duration-300 font-sans relative overflow-x-hidden">
-      
-      {/* Floating Glass Island Navbar with Day/Night Switcher */}
       <Navbar
         onOpenScanner={handleOpenScannerProtected}
+        onOpenDatabase={() => setIsDatabaseOpen(true)}
         onOpenCompare={handleOpenCompareProtected}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenEducation={() => setIsEducationOpen(true)}
         onOpenPricing={() => openPricingModal()}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         currentLang={currentLang}
         setCurrentLang={setCurrentLang}
         scanHistoryCount={scanHistory.length}
+        favoritesCount={favorites.length}
         isDarkMode={isDarkMode}
         onToggleTheme={toggleTheme}
+        mlHealth={mlHealth}
+        onRefreshMlHealth={refreshMlHealth}
       />
 
-      {/* Main Page Flow */}
       <main>
-        {/* 1. Hero Section with 3D Revolving Whey Jar & Live Scanner Pod */}
         <HeroSection
           onOpenScanner={handleOpenScannerProtected}
+          onOpenDatabase={() => setIsDatabaseOpen(true)}
           onOpenCompare={handleOpenCompareProtected}
           onOpenPitch={() => setIsPitchOpen(true)}
           currentLang={currentLang}
         />
-
-        {/* 2. Live Dynamic Marquee Ticker */}
         <LiveMarqueeTicker />
-
-        {/* 3. Stats & Verified Athlete Reviews with Real Animated Counters */}
         <StatsTestimonials />
-
-        {/* 4. Bento Grid Superhuman Features with Scroll Stagger Reveal */}
-        <BentoFeatures
-          onOpenScanner={handleOpenScannerProtected}
-        />
-
-        {/* 5. Bold Bottom Call-to-Action with Scroll Reveal */}
+        <BentoFeatures onOpenScanner={handleOpenScannerProtected} />
         <BottomCTA
           onOpenScanner={handleOpenScannerProtected}
           onOpenPricing={() => openPricingModal()}
         />
       </main>
 
-      {/* Footer */}
       <Footer
         onOpenPitch={() => setIsPitchOpen(true)}
         onOpenPricing={() => openPricingModal()}
         onOpenScanner={handleOpenScannerProtected}
+        onOpenDatabase={() => setIsDatabaseOpen(true)}
+        onOpenEducation={() => setIsEducationOpen(true)}
       />
 
-      {/* MODALS */}
-      <ScannerTool
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onSaveHistory={handleSaveToHistory}
-        currentLang={currentLang}
-      />
+      <Suspense fallback={null}>
+        {isScannerOpen && (
+          <ScannerTool
+            isOpen={isScannerOpen}
+            onClose={() => {
+              setIsScannerOpen(false);
+              setInspectedScan(null);
+            }}
+            onSaveHistory={handleSaveToHistory}
+            currentLang={currentLang}
+            mlHealth={mlHealth}
+            onRefreshMlHealth={refreshMlHealth}
+            initialResult={inspectedScan}
+            favoriteIds={favorites.map((f) => f.id || f.name)}
+            onToggleFavorite={handleToggleFavorite}
+            onSendToCompare={handleSendToCompare}
+          />
+        )}
 
-      <CompareModal
-        isOpen={isCompareOpen}
-        onClose={() => setIsCompareOpen(false)}
-        currentLang={currentLang}
-      />
+        {isCompareOpen && (
+          <CompareModal
+            isOpen={isCompareOpen}
+            onClose={() => setIsCompareOpen(false)}
+            currentLang={currentLang}
+            initialProdA={comparePreloadA}
+            scanHistory={scanHistory}
+          />
+        )}
 
-      <HistoryModal
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        history={scanHistory}
-        onClear={handleClearHistory}
-        currentLang={currentLang}
-      />
+        {isDatabaseOpen && (
+          <DatabaseModal
+            isOpen={isDatabaseOpen}
+            onClose={() => setIsDatabaseOpen(false)}
+            onInspectProduct={handleInspectResult}
+            onSendToCompare={handleSendToCompare}
+            favoriteIds={favorites.map((f) => f.id || f.name)}
+            onToggleFavorite={handleToggleFavorite}
+          />
+        )}
 
-      <PricingModal
-        isOpen={isPricingOpen}
-        onClose={closePricingModal}
-        onStartScanning={handleOpenScannerProtected}
-      />
+        {isEducationOpen && (
+          <EducationModal
+            isOpen={isEducationOpen}
+            onClose={() => setIsEducationOpen(false)}
+            onOpenScanner={handleOpenScannerProtected}
+          />
+        )}
 
-      <PitchDeckModal
-        isOpen={isPitchOpen}
-        onClose={() => setIsPitchOpen(false)}
-      />
+        {isHistoryOpen && (
+          <HistoryModal
+            isOpen={isHistoryOpen}
+            onClose={() => setIsHistoryOpen(false)}
+            history={scanHistory}
+            favorites={favorites}
+            onToggleFavorite={handleToggleFavorite}
+            onClearHistory={handleClearHistory}
+            onClear={handleClearHistory}
+            onInspectScan={handleInspectResult}
+            onSendToCompare={handleSendToCompare}
+            userEmail={user?.email || null}
+            currentLang={currentLang}
+          />
+        )}
 
-      {/* Direct Email Auth Modal with Typo Protection & 5 Free Scans Celebration */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onStartScanning={() => setIsScannerOpen(true)}
-      />
+        {isPricingOpen && (
+          <PricingModal
+            isOpen={isPricingOpen}
+            onClose={closePricingModal}
+            onStartScanning={handleOpenScannerProtected}
+          />
+        )}
 
+        {isPitchOpen && (
+          <PitchDeckModal
+            isOpen={isPitchOpen}
+            onClose={() => setIsPitchOpen(false)}
+          />
+        )}
+
+        {(isAuthModalOpen || showCelebrationModal) && (
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => setIsAuthModalOpen(false)}
+            onStartScanning={() => setIsScannerOpen(true)}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

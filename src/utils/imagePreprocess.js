@@ -12,7 +12,7 @@
  */
 
 export const MAX_IMAGE_SIDE = 2000;
-export const TARGET_MIN_WIDTH = 1100;
+export const TARGET_MIN_WIDTH = 1350;
 
 /**
  * Resize raw RGBA buffer using bilinear interpolation.
@@ -227,54 +227,99 @@ export function medianDenoise3x3(gray, width, height) {
 }
 
 /**
- * Contrast stretching (2%-98% percentile) + subtle unsharp sharpening.
+ * CLAHE (Contrast Limited Adaptive Histogram Equalization, 8x8 grid with bilinear interpolation)
+ * + subtle unsharp sharpening. Eliminates uneven shadow/glare on curved supplement tubs.
+ */
+export function applyCLAHE(gray, width, height, gridSize = 8, clipLimit = 2.8) {
+  const gx = Math.min(gridSize, Math.max(2, Math.floor(width / 32)));
+  const gy = Math.min(gridSize, Math.max(2, Math.floor(height / 32)));
+  const tileW = width / gx;
+  const tileH = height / gy;
+
+  // Build clipped & equalized LUT per tile
+  const luts = Array.from({ length: gy }, () => Array(gx));
+  for (let ty = 0; ty < gy; ty++) {
+    const y0 = Math.floor(ty * tileH);
+    const y1 = ty === gy - 1 ? height : Math.floor((ty + 1) * tileH);
+    for (let tx = 0; tx < gx; tx++) {
+      const x0 = Math.floor(tx * tileW);
+      const x1 = tx === gx - 1 ? width : Math.floor((tx + 1) * tileW);
+      const area = Math.max(1, (x1 - x0) * (y1 - y0));
+
+      const hist = new Int32Array(256);
+      for (let y = y0; y < y1; y++) {
+        const row = y * width;
+        for (let x = x0; x < x1; x++) hist[gray[row + x]]++;
+      }
+
+      // Clip histogram and redistribute excess uniformly
+      const maxBin = Math.max(1, Math.floor((clipLimit * area) / 256));
+      let excess = 0;
+      for (let i = 0; i < 256; i++) {
+        if (hist[i] > maxBin) {
+          excess += hist[i] - maxBin;
+          hist[i] = maxBin;
+        }
+      }
+      const addEach = Math.floor(excess / 256);
+      const rem = excess % 256;
+      for (let i = 0; i < 256; i++) {
+        hist[i] += addEach + (i < rem ? 1 : 0);
+      }
+
+      // CDF -> [0..255] LUT
+      const lut = new Uint8Array(256);
+      let cdf = 0;
+      for (let i = 0; i < 256; i++) {
+        cdf += hist[i];
+        lut[i] = Math.min(255, Math.max(0, Math.round((cdf * 255) / area)));
+      }
+      luts[ty][tx] = lut;
+    }
+  }
+
+  // Bilinearly interpolate pixel values between surrounding 4 tile centers
+  const out = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    const fy = (y + 0.5) / tileH - 0.5;
+    const ty0 = Math.max(0, Math.min(gy - 1, Math.floor(fy)));
+    const ty1 = Math.max(0, Math.min(gy - 1, ty0 + 1));
+    const wy = ty0 === ty1 ? 0 : Math.max(0, Math.min(1, fy - ty0));
+    const row = y * width;
+
+    for (let x = 0; x < width; x++) {
+      const fx = (x + 0.5) / tileW - 0.5;
+      const tx0 = Math.max(0, Math.min(gx - 1, Math.floor(fx)));
+      const tx1 = Math.max(0, Math.min(gx - 1, tx0 + 1));
+      const wx = tx0 === tx1 ? 0 : Math.max(0, Math.min(1, fx - tx0));
+
+      const v = gray[row + x];
+      const top = luts[ty0][tx0][v] * (1 - wx) + luts[ty0][tx1][v] * wx;
+      const bot = luts[ty1][tx0][v] * (1 - wx) + luts[ty1][tx1][v] * wx;
+      out[row + x] = Math.round(top * (1 - wy) + bot * wy);
+    }
+  }
+  return out;
+}
+
+/**
+ * CLAHE contrast enhancement + subtle unsharp sharpening.
  */
 export function boostContrastAndSharpen(gray, width, height) {
-  const hist = new Int32Array(256);
-  for (let i = 0; i < gray.length; i++) hist[gray[i]]++;
-
-  const total = gray.length;
-  const lowTarget = Math.floor(total * 0.02);
-  const highTarget = Math.floor(total * 0.98);
-
-  let cum = 0;
-  let minV = 0;
-  let maxV = 255;
-  for (let i = 0; i < 256; i++) {
-    cum += hist[i];
-    if (cum >= lowTarget) {
-      minV = i;
-      break;
-    }
-  }
-  cum = 0;
-  for (let i = 255; i >= 0; i--) {
-    cum += hist[i];
-    if (total - cum <= highTarget) {
-      maxV = i;
-      break;
-    }
-  }
-
-  const range = Math.max(16, maxV - minV);
-  const stretched = new Uint8Array(total);
-  for (let i = 0; i < total; i++) {
-    const norm = ((gray[i] - minV) * 255) / range;
-    stretched[i] = norm < 0 ? 0 : norm > 255 ? 255 : Math.round(norm);
-  }
+  const clahe = applyCLAHE(gray, width, height, 8, 2.8);
 
   // Light 3x3 unsharp mask to crisp up small 6pt ingredient fonts
-  const sharpened = new Uint8Array(stretched);
+  const sharpened = new Uint8Array(clahe);
   for (let y = 1; y < height - 1; y++) {
     const row = y * width;
     for (let x = 1; x < width - 1; x++) {
       const idx = row + x;
-      const center = stretched[idx];
+      const center = clahe[idx];
       const neighbors =
-        stretched[idx - 1] +
-        stretched[idx + 1] +
-        stretched[idx - width] +
-        stretched[idx + width];
+        clahe[idx - 1] +
+        clahe[idx + 1] +
+        clahe[idx - width] +
+        clahe[idx + width];
       const blur = (center * 4 + neighbors) / 8;
       const val = center + 0.65 * (center - blur);
       sharpened[idx] = val < 0 ? 0 : val > 255 ? 255 : Math.round(val);
@@ -427,7 +472,7 @@ export function buildPreprocessedVariantsFromRGBA(rawRGBA, srcWidth, srcHeight) 
       },
       {
         id: 'high_contrast',
-        label: 'High-Contrast Sharpened',
+        label: 'CLAHE Contrast + Sharpened',
         psm: '6',
         rgba: grayscaleToRGBA(highContrast, width, height),
       },
@@ -506,10 +551,20 @@ export function computeBlurAndBrightness(rgba, width, height) {
 }
 
 /**
- * Browser helper: converts an image dataURL (and optional normalized crop rect)
- * into 3 canvas-encoded PNG dataURLs for multi-variant Tesseract OCR.
+ * Loads an image source with automatic EXIF orientation correction using
+ * createImageBitmap({ imageOrientation: 'from-image' }) when supported.
  */
-export async function preprocessImageInBrowser(imageSource, cropRect = null) {
+async function loadOrientedDrawable(imageSource) {
+  if (typeof createImageBitmap === 'function' && typeof fetch === 'function') {
+    try {
+      const resp = await fetch(imageSource);
+      const blob = await resp.blob();
+      const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+      return { drawable: bitmap, width: bitmap.width, height: bitmap.height, cleanup: () => bitmap.close?.() };
+    } catch (_) {
+      // Fallback to HTMLImageElement below
+    }
+  }
   const img = await new Promise((resolve, reject) => {
     const el = new Image();
     el.crossOrigin = 'anonymous';
@@ -517,44 +572,71 @@ export async function preprocessImageInBrowser(imageSource, cropRect = null) {
     el.onerror = () => reject(new Error('Failed to load image for preprocessing'));
     el.src = imageSource;
   });
+  return { drawable: img, width: img.naturalWidth || img.width, height: img.naturalHeight || img.height, cleanup: () => {} };
+}
 
-  const sx = cropRect ? Math.round(cropRect.x * img.width) : 0;
-  const sy = cropRect ? Math.round(cropRect.y * img.height) : 0;
-  const sw = cropRect ? Math.max(20, Math.round(cropRect.width * img.width)) : img.width;
-  const sh = cropRect ? Math.max(20, Math.round(cropRect.height * img.height)) : img.height;
+/**
+ * Browser helper: decodes EXIF orientation, crops if requested, scales to ~2000px,
+ * and encodes 3 canvas PNG dataURLs (grayscale, CLAHE contrast, Sauvola binarized).
+ */
+export async function preprocessImageInBrowser(imageSource, cropRect = null) {
+  const loaded = await loadOrientedDrawable(imageSource);
+  try {
+    const rawRect =
+      cropRect && typeof cropRect === 'object' && 'cropRect' in cropRect
+        ? cropRect.cropRect
+        : cropRect;
+    const validCrop =
+      rawRect &&
+      Number.isFinite(rawRect.x) &&
+      Number.isFinite(rawRect.y) &&
+      Number.isFinite(rawRect.width) &&
+      Number.isFinite(rawRect.height) &&
+      rawRect.width > 0 &&
+      rawRect.height > 0
+        ? rawRect
+        : null;
 
-  const { width, height } = computeTargetDimensions(sw, sh);
+    const sx = validCrop ? Math.round(validCrop.x * loaded.width) : 0;
+    const sy = validCrop ? Math.round(validCrop.y * loaded.height) : 0;
+    const sw = validCrop ? Math.max(20, Math.round(validCrop.width * loaded.width)) : loaded.width;
+    const sh = validCrop ? Math.max(20, Math.round(validCrop.height * loaded.height)) : loaded.height;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, width, height);
+    const { width, height } = computeTargetDimensions(sw, sh);
 
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const processed = buildPreprocessedVariantsFromRGBA(imageData.data, width, height);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(loaded.drawable, sx, sy, sw, sh, 0, 0, width, height);
 
-  const encodedVariants = processed.variants.map((v) => {
-    const vCanvas = document.createElement('canvas');
-    vCanvas.width = processed.width;
-    vCanvas.height = processed.height;
-    const vCtx = vCanvas.getContext('2d');
-    const outImgData = new ImageData(v.rgba, processed.width, processed.height);
-    vCtx.putImageData(outImgData, 0, 0);
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const processed = buildPreprocessedVariantsFromRGBA(imageData.data, width, height);
+
+    const encodedVariants = processed.variants.map((v) => {
+      const vCanvas = document.createElement('canvas');
+      vCanvas.width = processed.width;
+      vCanvas.height = processed.height;
+      const vCtx = vCanvas.getContext('2d');
+      const outImgData = new ImageData(v.rgba, processed.width, processed.height);
+      vCtx.putImageData(outImgData, 0, 0);
+      return {
+        id: v.id,
+        label: v.label,
+        psm: v.psm,
+        dataUrl: vCanvas.toDataURL('image/png'),
+      };
+    });
+
     return {
-      id: v.id,
-      label: v.label,
-      psm: v.psm,
-      dataUrl: vCanvas.toDataURL('image/png'),
+      width: processed.width,
+      height: processed.height,
+      skewAngle: processed.skewAngle,
+      variants: encodedVariants,
     };
-  });
-
-  return {
-    width: processed.width,
-    height: processed.height,
-    skewAngle: processed.skewAngle,
-    variants: encodedVariants,
-  };
+  } finally {
+    loaded.cleanup();
+  }
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Footer({ onOpenPitch, onOpenPricing, onOpenScanner }) {
+export default function Footer({ onOpenPitch, onOpenPricing, onOpenScanner, onOpenDatabase, onOpenEducation }) {
   return (
     <footer className="py-12 border-t border-rose-500/15 glass-island text-center text-slate-500 dark:text-rose-200/60 text-xs font-medium">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
@@ -18,12 +18,10 @@ export default function Footer({ onOpenPitch, onOpenPricing, onOpenScanner }) {
         {/* Links */}
         <div className="flex flex-wrap justify-center gap-6 text-slate-600 dark:text-rose-200/80">
           <button onClick={onOpenScanner} className="hover:text-rose-500 transition-colors cursor-pointer">Live Scanner</button>
+          <button onClick={onOpenDatabase} className="hover:text-rose-500 transition-colors cursor-pointer">Supplement Database</button>
+          <button onClick={onOpenEducation} className="hover:text-rose-500 transition-colors cursor-pointer">Safety & Label Guide</button>
           <button onClick={onOpenPricing} className="hover:text-rose-500 transition-colors cursor-pointer">Pricing</button>
           <button onClick={onOpenPitch} className="hover:text-rose-500 transition-colors cursor-pointer">Pitch Deck</button>
-          <a href="#" className="hover:text-rose-500 transition-colors">Lab Methodology</a>
-          <a href="#" className="hover:text-rose-500 transition-colors">Privacy</a>
-          <a href="#" className="hover:text-rose-500 transition-colors">Terms</a>
-          <a href="#" className="hover:text-rose-500 transition-colors">Contact Lab</a>
         </div>
 
         {/* Disclaimer */}

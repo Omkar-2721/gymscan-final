@@ -303,6 +303,13 @@ def build_ingredients_dataset() -> Path:
         ("phenolphthalein", "banned_wada", "Prohibited hidden laxative adulterant in weight-loss blends"),
         ("deanol", "banned_wada", "Stimulant compound restricted in competitive testing"),
         ("methyltestosterone", "banned_wada", "WADA S1 Prohibited Oral Anabolic Steroid"),
+        ("1-androstenediol", "banned_wada", "WADA S1 Prohibited Anabolic Prohormone"),
+        ("4-androstenedione", "banned_wada", "WADA S1 Prohibited Anabolic Steroid Precursor"),
+        ("methasterone", "banned_wada", "WADA S1 Prohibited Designer Anabolic Steroid (Superdrol)"),
+        ("trenbolone", "banned_wada", "WADA S1 Prohibited Anabolic Steroid"),
+        ("tadalafil", "banned_wada", "Undeclared prescription PDE5 inhibitor adulterant"),
+        ("sildenafil", "banned_wada", "Undeclared prescription PDE5 inhibitor adulterant"),
+        ("tribulus terrestris", "harmful", "Athlete contamination risk herb (flagged by anti-doping bodies)"),
     ]
 
     csv_path = DATA_DIR / "ingredients.csv"
@@ -409,117 +416,152 @@ def build_spiking_dataset(n_rows: int = 600, seed: int = 42) -> Path:
     return csv_path
 
 
-def build_scores_dataset(n_rows: int = 800, seed: int = 42) -> Path:
+def build_scores_dataset(n_rows: int = 1000, seed: int = 42) -> Path:
     """
-    Generate synthetic Purity / Health Score dataset (/ml-service/data/scores.csv).
+    Generate synthetic Purity / Health Score dataset (/ml-service/data/scores.csv)
+    with >= 800 rows well spread across 0-100:
+      - Clean isolates (80-95)
+      - Average blends (50-75)
+      - Sugary or artificially sweetened products (35-60)
+      - Amino-spiked products (20-45)
+      - Proprietary-blend products with hidden doses (30-55)
+      - Banned or stimulant-laced products (0-20)
 
     IMPORTANT NOTE:
-    These target scores (0-100) are generated using domain-expert nutrition rules
-    plus small Gaussian noise to simulate real-world variance. In production, this
-    synthetic dataset should be replaced with real laboratory-verified assay scores.
+    These target scores (0-100) are generated from domain-expert rules plus realistic
+    noise to ensure a balanced 0-100 distribution. Replace with real lab assays later.
     """
     rng = np.random.default_rng(seed)
     rows = []
 
+    archetypes = [
+        "clean_isolate",
+        "average_blend",
+        "sugary_artificial",
+        "amino_spiked",
+        "proprietary_hidden",
+        "banned_laced",
+    ]
+    probs = [0.20, 0.20, 0.16, 0.16, 0.14, 0.14]
+
     for _ in range(n_rows):
-        category_type = rng.choice(
-            ["clean_isolate", "standard_whey", "spiked_whey", "protein_bar", "preworkout_clean", "preworkout_banned"],
-            p=[0.22, 0.22, 0.20, 0.16, 0.10, 0.10],
-        )
+        archetype = rng.choice(archetypes, p=probs)
 
-        if category_type == "clean_isolate":
+        if archetype == "clean_isolate":
+            protein_per_serving_g = float(rng.uniform(23.5, 29.0))
             serving_size_g = float(rng.uniform(28.0, 34.0))
-            protein_per_serving_g = float(rng.uniform(24.0, 29.0))
+            protein_percent = round(min(96.0, (protein_per_serving_g / serving_size_g) * 100.0), 2)
             sugar_g = float(rng.uniform(0.0, 1.5))
-            amino_acid_ratio = float(rng.uniform(0.90, 1.0))
+            harmful_count = int(rng.choice([0, 0, 0, 1]))
+            banned_count = 0
+            artificial_sweetener_count = int(rng.choice([0, 0, 1]))
+            artificial_color_count = 0
+            spiking_prob = float(rng.uniform(0.01, 0.10))
             blend_transparency = 1.0
-            n_harmful = int(rng.choice([0, 0, 1]))
-            n_banned = 0
-            artificial_additives = int(rng.choice([0, 0, 1]))
-            spiking_prob = float(rng.uniform(0.01, 0.12))
+            unrecognized_ratio = float(rng.uniform(0.0, 0.08))
+            ocr_match_confidence = float(rng.uniform(0.84, 1.0))
+            target = float(rng.uniform(81.0, 95.0))
+            target -= harmful_count * 4.0 + artificial_sweetener_count * 3.0 + sugar_g * 1.2 + unrecognized_ratio * 15.0
 
-        elif category_type == "standard_whey":
-            serving_size_g = float(rng.uniform(30.0, 38.0))
-            protein_per_serving_g = float(rng.uniform(21.0, 25.0))
-            sugar_g = float(rng.uniform(1.0, 3.5))
-            amino_acid_ratio = float(rng.uniform(0.75, 0.92))
-            blend_transparency = float(rng.choice([1.0, 0.7]))
-            n_harmful = int(rng.integers(1, 3))
-            n_banned = 0
-            artificial_additives = int(rng.integers(1, 4))
+        elif archetype == "average_blend":
+            protein_per_serving_g = float(rng.uniform(19.0, 24.5))
+            serving_size_g = float(rng.uniform(31.0, 40.0))
+            protein_percent = round((protein_per_serving_g / serving_size_g) * 100.0, 2)
+            sugar_g = float(rng.uniform(1.5, 4.5))
+            harmful_count = int(rng.integers(1, 3))
+            banned_count = 0
+            artificial_sweetener_count = int(rng.integers(1, 3))
+            artificial_color_count = int(rng.choice([0, 0, 1]))
             spiking_prob = float(rng.uniform(0.08, 0.28))
+            blend_transparency = float(rng.choice([1.0, 0.75]))
+            unrecognized_ratio = float(rng.uniform(0.02, 0.20))
+            ocr_match_confidence = float(rng.uniform(0.68, 0.96))
+            target = float(rng.uniform(54.0, 74.0))
+            target -= (harmful_count - 1) * 3.0 + artificial_color_count * 3.0 + (sugar_g - 2.0) * 1.5
 
-        elif category_type == "spiked_whey":
+        elif archetype == "sugary_artificial":
+            protein_per_serving_g = float(rng.uniform(8.0, 20.0))
+            serving_size_g = float(rng.uniform(45.0, 85.0))
+            protein_percent = round((protein_per_serving_g / serving_size_g) * 100.0, 2)
+            sugar_g = float(rng.uniform(7.0, 28.0))
+            harmful_count = int(rng.integers(2, 6))
+            banned_count = 0
+            artificial_sweetener_count = int(rng.integers(1, 4))
+            artificial_color_count = int(rng.integers(1, 4))
+            spiking_prob = float(rng.uniform(0.10, 0.38))
+            blend_transparency = float(rng.choice([1.0, 0.65]))
+            unrecognized_ratio = float(rng.uniform(0.05, 0.28))
+            ocr_match_confidence = float(rng.uniform(0.62, 0.94))
+            target = float(rng.uniform(36.0, 58.0))
+            target -= max(0.0, (sugar_g - 10.0) * 0.45) + artificial_color_count * 1.8
+
+        elif archetype == "amino_spiked":
+            protein_per_serving_g = float(rng.uniform(16.0, 25.0))
             serving_size_g = float(rng.uniform(32.0, 42.0))
-            protein_per_serving_g = float(rng.uniform(12.0, 22.0))
-            sugar_g = float(rng.uniform(2.0, 7.0))
-            amino_acid_ratio = float(rng.uniform(0.32, 0.68))
-            blend_transparency = float(rng.choice([0.0, 0.3, 0.5]))
-            n_harmful = int(rng.integers(2, 6))
-            n_banned = 0
-            artificial_additives = int(rng.integers(2, 5))
-            spiking_prob = float(rng.uniform(0.60, 0.98))
+            protein_percent = round((protein_per_serving_g / serving_size_g) * 100.0, 2)
+            sugar_g = float(rng.uniform(1.5, 6.0))
+            harmful_count = int(rng.integers(2, 6))
+            banned_count = 0
+            artificial_sweetener_count = int(rng.integers(1, 3))
+            artificial_color_count = int(rng.integers(0, 3))
+            spiking_prob = float(rng.uniform(0.66, 0.99))
+            blend_transparency = float(rng.choice([0.0, 0.35, 0.6]))
+            unrecognized_ratio = float(rng.uniform(0.04, 0.25))
+            ocr_match_confidence = float(rng.uniform(0.62, 0.95))
+            target = float(rng.uniform(22.0, 44.0))
+            target -= (spiking_prob - 0.65) * 20.0 + harmful_count * 1.2
 
-        elif category_type == "protein_bar":
-            serving_size_g = float(rng.uniform(50.0, 68.0))
-            protein_per_serving_g = float(rng.uniform(14.0, 22.0))
-            sugar_g = float(rng.uniform(1.0, 12.0))
-            amino_acid_ratio = float(rng.uniform(0.70, 0.95))
-            blend_transparency = float(rng.choice([1.0, 0.7]))
-            n_harmful = int(rng.integers(0, 4))
-            n_banned = 0
-            artificial_additives = int(rng.integers(0, 4))
-            spiking_prob = float(rng.uniform(0.05, 0.30))
+        elif archetype == "proprietary_hidden":
+            protein_per_serving_g = float(rng.uniform(0.0, 16.0))
+            serving_size_g = float(rng.uniform(8.0, 30.0))
+            protein_percent = round((protein_per_serving_g / max(1.0, serving_size_g)) * 100.0, 2)
+            sugar_g = float(rng.uniform(0.5, 6.5))
+            harmful_count = int(rng.integers(1, 5))
+            banned_count = 0
+            artificial_sweetener_count = int(rng.integers(1, 3))
+            artificial_color_count = int(rng.integers(0, 3))
+            spiking_prob = float(rng.uniform(0.25, 0.60))
+            blend_transparency = float(rng.uniform(0.0, 0.30))
+            unrecognized_ratio = float(rng.uniform(0.10, 0.35))
+            ocr_match_confidence = float(rng.uniform(0.55, 0.90))
+            target = float(rng.uniform(32.0, 54.0))
+            target -= (1.0 - blend_transparency) * 5.0 + artificial_color_count * 2.0
 
-        elif category_type == "preworkout_clean":
-            serving_size_g = float(rng.uniform(8.0, 16.0))
-            protein_per_serving_g = 0.0
-            sugar_g = float(rng.uniform(0.0, 1.5))
-            amino_acid_ratio = float(rng.uniform(0.75, 0.95))
-            blend_transparency = 1.0
-            n_harmful = int(rng.integers(0, 2))
-            n_banned = 0
-            artificial_additives = int(rng.integers(0, 3))
-            spiking_prob = float(rng.uniform(0.02, 0.15))
+        else:  # banned_laced (0-20)
+            protein_per_serving_g = float(rng.choice([0.0, rng.uniform(0.0, 20.0)]))
+            serving_size_g = float(rng.uniform(6.0, 28.0))
+            protein_percent = round((protein_per_serving_g / max(1.0, serving_size_g)) * 100.0, 2)
+            sugar_g = float(rng.uniform(0.0, 4.0))
+            harmful_count = int(rng.integers(1, 5))
+            banned_count = int(rng.integers(1, 4))
+            artificial_sweetener_count = int(rng.integers(0, 3))
+            artificial_color_count = int(rng.integers(0, 3))
+            spiking_prob = float(rng.uniform(0.05, 0.55))
+            blend_transparency = float(rng.choice([0.0, 0.25, 0.6]))
+            unrecognized_ratio = float(rng.uniform(0.0, 0.25))
+            ocr_match_confidence = float(rng.uniform(0.65, 0.98))
+            target = float(rng.uniform(4.0, 19.0))
+            target -= (banned_count - 1) * 3.5
 
-        else:  # preworkout_banned
-            serving_size_g = float(rng.uniform(7.0, 14.0))
-            protein_per_serving_g = 0.0
-            sugar_g = float(rng.uniform(0.0, 2.0))
-            amino_acid_ratio = float(rng.uniform(0.55, 0.85))
-            blend_transparency = float(rng.choice([0.0, 0.25]))
-            n_harmful = int(rng.integers(2, 5))
-            n_banned = int(rng.integers(1, 3))
-            artificial_additives = int(rng.integers(2, 5))
-            spiking_prob = float(rng.uniform(0.10, 0.45))
-
-        protein_percent = round((protein_per_serving_g / max(serving_size_g, 1.0)) * 100.0, 2)
-
-        # Expert-style domain rule formula (plus noise)
-        base_score = 72.0
-        base_score += min(16.0, protein_percent * 0.18)
-        base_score += amino_acid_ratio * 14.0
-        base_score += blend_transparency * 7.0
-        base_score -= min(14.0, sugar_g * 1.15)
-        base_score -= n_harmful * 5.8
-        base_score -= n_banned * 28.0
-        base_score -= artificial_additives * 2.6
-        base_score -= spiking_prob * 26.0
-
-        noise = float(rng.normal(0.0, 2.2))
-        final_score = float(np.clip(base_score + noise, 5.0, 99.0))
+        noise = float(rng.normal(0.0, 1.8))
+        final_score = float(np.clip(target + noise, 1.0, 96.0))
+        if banned_count > 0:
+            final_score = min(final_score, 20.0)
+        elif spiking_prob >= 0.65:
+            final_score = min(final_score, 45.0)
 
         rows.append({
-            "protein_per_serving_g": round(protein_per_serving_g, 2),
-            "serving_size_g": round(serving_size_g, 2),
-            "protein_percent": protein_percent,
+            "harmful_count": harmful_count,
+            "banned_count": banned_count,
+            "artificial_sweetener_count": artificial_sweetener_count,
+            "artificial_color_count": artificial_color_count,
             "sugar_g": round(sugar_g, 2),
-            "amino_acid_ratio": round(amino_acid_ratio, 3),
-            "blend_transparency": round(blend_transparency, 2),
-            "number_of_harmful_ingredients": n_harmful,
-            "number_of_banned_ingredients": n_banned,
-            "artificial_additive_count": artificial_additives,
+            "protein_per_serving_g": round(protein_per_serving_g, 2),
+            "protein_percent": protein_percent,
             "spiking_risk_probability": round(spiking_prob, 3),
+            "blend_transparency": round(blend_transparency, 2),
+            "unrecognized_ratio": round(unrecognized_ratio, 3),
+            "ocr_match_confidence": round(ocr_match_confidence, 3),
             "score": round(final_score, 2),
         })
 
@@ -533,4 +575,4 @@ def build_scores_dataset(n_rows: int = 800, seed: int = 42) -> Path:
 if __name__ == "__main__":
     build_ingredients_dataset()
     build_spiking_dataset(n_rows=600)
-    build_scores_dataset(n_rows=800)
+    build_scores_dataset(n_rows=1000)

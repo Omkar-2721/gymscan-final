@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import Razorpay from 'razorpay';
+import scanRouter from './routes/scan.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +15,7 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
+const ML_SERVICE_URL = (process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
 
 /**
@@ -60,6 +62,9 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
+// Mount multi-image Vision Extraction route BEFORE strict 100kb JSON limit
+app.use('/api/scan', scanRouter);
 
 app.use(express.json({ limit: '100kb' }));
 
@@ -239,6 +244,28 @@ app.post('/api/payment/verify', (req, res, next) => {
     });
   } catch (err) {
     return next(err);
+  }
+});
+
+// Forward /api/ml/* requests to the Python FastAPI ML Service when hit directly via Express
+app.use('/api/ml', async (req, res) => {
+  try {
+    const targetPath = req.originalUrl.replace(/^\/api\/ml/, '') || '/health';
+    const targetUrl = `${ML_SERVICE_URL}${targetPath}`;
+    const headers = { 'Content-Type': 'application/json' };
+    const fetchOpts = { method: req.method, headers };
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      fetchOpts.body = JSON.stringify(req.body || {});
+    }
+    const upstream = await fetch(targetUrl, fetchOpts);
+    const text = await upstream.text();
+    res.status(upstream.status).set('Content-Type', upstream.headers.get('content-type') || 'application/json').send(text);
+  } catch (err) {
+    res.status(503).json({
+      status: 'offline',
+      models_loaded: false,
+      error: `ML service unreachable at ${ML_SERVICE_URL}: ${err.message}`,
+    });
   }
 });
 

@@ -10,6 +10,7 @@ import {
   EXACT_INGREDIENT_MAP,
   DICTIONARY_SEARCH_ITEMS,
 } from '../data/ingredientDictionary.js';
+import { matchBannedOrContamination } from '../data/bannedSubstances.js';
 
 let workerPromise = null;
 let workerQueue = Promise.resolve();
@@ -66,6 +67,7 @@ export async function recognizeSingleVariant(imageInput, psm = '6') {
             .map((ln) => ({
               text: (ln.text || '').trim(),
               confidence: Math.round(Number(ln.confidence ?? data.confidence ?? 0)),
+              bbox: ln.bbox || null,
             }))
             .filter((ln) => ln.text.length > 0)
         : rawText
@@ -73,6 +75,7 @@ export async function recognizeSingleVariant(imageInput, psm = '6') {
             .map((t) => ({
               text: t.trim(),
               confidence: Math.round(Number(data.confidence ?? 0)),
+              bbox: null,
             }))
             .filter((ln) => ln.text.length > 0);
 
@@ -103,27 +106,99 @@ function scoreVariantQuality(res) {
 }
 
 /**
- * Runs OCR across 2-3 preprocessed variants and picks the best result
- * (or merges high-confidence lines if beneficial).
+ * Locates the bounding box [0..1] of the Ingredients / Supplement Facts section
+ * from OCR line boxes so full-label photos can automatically run a high-zoom 2nd pass.
  */
-export async function recognizeWithVariants(variants, { fastMode = false } = {}) {
-  const list = fastMode ? variants.slice(1, 2) : variants; // In live fastMode, run high_contrast
-  const variantResults = [];
+export function findIngredientRegionBBox(lines, imgWidth, imgHeight) {
+  if (!Array.isArray(lines) || lines.length === 0 || !imgWidth || !imgHeight) return null;
 
-  for (const variant of list) {
-    const input = variant.buffer || variant.dataUrl;
-    const res = await recognizeSingleVariant(input, variant.psm || '6');
+  let startIdx = -1;
+  let endIdx = lines.length - 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const txt = (lines[i].text || '').toLowerCase();
+    if (
+      startIdx === -1 &&
+      /(?:other\s+ingredients|ingredients|active\s+ingredients|supplement\s+facts)/i.test(txt)
+    ) {
+      startIdx = i;
+      continue;
+    }
+    if (
+      startIdx !== -1 &&
+      i > startIdx &&
+      /^(?:contains\s*:|allergen|directions|suggested\s+use|war[nm]ing|caution|manufactured\s+(?:for|by)|distributed\s+by)/i.test(
+        txt
+      )
+    ) {
+      endIdx = Math.max(startIdx, i - 1);
+      break;
+    }
+  }
+
+  if (startIdx === -1) return null;
+  const targetLines = lines.slice(startIdx, endIdx + 1).filter((l) => l.bbox);
+  if (targetLines.length === 0) return null;
+
+  let x0 = imgWidth;
+  let y0 = imgHeight;
+  let x1 = 0;
+  let y1 = 0;
+  for (const ln of targetLines) {
+    x0 = Math.min(x0, ln.bbox.x0 ?? 0);
+    y0 = Math.min(y0, ln.bbox.y0 ?? 0);
+    x1 = Math.max(x1, ln.bbox.x1 ?? imgWidth);
+    y1 = Math.max(y1, ln.bbox.y1 ?? imgHeight);
+  }
+
+  // Pad slightly around detected section (~3% W, ~4% H)
+  const padX = imgWidth * 0.03;
+  const padY = imgHeight * 0.04;
+  const nx = Math.max(0, (x0 - padX) / imgWidth);
+  const ny = Math.max(0, (y0 - padY) / imgHeight);
+  const nw = Math.min(1 - nx, (x1 - x0 + padX * 2) / imgWidth);
+  const nh = Math.min(1 - ny, (y1 - y0 + padY * 2) / imgHeight);
+
+  if (nw < 0.12 || nh < 0.08) return null;
+  // Only worth re-cropping if it meaningfully zooms in (< 78% of full image area)
+  if (nw * nh >= 0.78) return null;
+  return { x: nx, y: ny, width: nw, height: nh };
+}
+
+/**
+ * Runs OCR across all 3 preprocessed variants (grayscale, CLAHE contrast, Sauvola threshold)
+ * trying both PSM 6 and PSM 4, picking the best result by confidence + alphabetic quality.
+ */
+export async function recognizeWithVariants(
+  variants,
+  { fastMode = false, imgWidth = null, imgHeight = null } = {}
+) {
+  const passes = [];
+  if (fastMode) {
+    const v = variants[1] || variants[0];
+    if (v) passes.push({ ...v, psm: '6' });
+  } else {
+    for (const v of variants) {
+      passes.push({ ...v, psm: '6' });
+      passes.push({ ...v, psm: '4' });
+    }
+  }
+
+  const variantResults = [];
+  for (const pass of passes) {
+    const input = pass.buffer || pass.dataUrl;
+    const res = await recognizeSingleVariant(input, pass.psm);
     const qualityScore = scoreVariantQuality(res);
     variantResults.push({
-      id: variant.id,
-      label: variant.label,
-      psm: variant.psm || '6',
+      id: pass.id,
+      label: pass.label,
+      psm: pass.psm,
       ...res,
       qualityScore: Math.round(qualityScore * 10) / 10,
     });
 
-    // Early exit when first high-quality pass already yields strong confidence + rich text
-    if (!fastMode && variantResults.length >= 2 && res.confidence >= 88 && (res.text || '').length > 80) {
+    // Early exit only when already >= 92% confidence and rich extracted text
+    if (!fastMode && variantResults.length >= 2 && res.confidence >= 92 && (res.text || '').length > 100) {
       break;
     }
   }
@@ -156,11 +231,25 @@ export async function recognizeWithVariants(variants, { fastMode = false } = {})
     }
   }
 
+  const regionBBox = findIngredientRegionBBox(winner.lines, imgWidth, imgHeight);
+
+  if (typeof console !== 'undefined' && !fastMode) {
+    console.info('[GymScan OCR Debug]', {
+      winningVariant: `${winner.label} (PSM ${winner.psm})`,
+      confidence: winner.confidence,
+      lineCount: winner.lines.length,
+      perLineConfidence: winner.lines.map((l) => `${l.confidence}%: ${l.text}`),
+      rawText: mergedText,
+      autoRegionBBox: regionBBox,
+    });
+  }
+
   return {
     text: mergedText,
     confidence: winner.confidence,
-    perLineConfidence: winner.lines,
+    perLineConfidence: winner.lines.map(({ text, confidence }) => ({ text, confidence })),
     winningVariant: { id: winner.id, label: winner.label, psm: winner.psm },
+    regionBBox,
     variantStats: variantResults.map((v) => ({
       id: v.id,
       label: v.label,
@@ -415,6 +504,29 @@ export function matchIngredientToDictionary(rawToken) {
     return null;
   }
 
+  // 0. Check Banned / Contamination-Risk matcher first with strict >= 0.85 threshold (catches OCR typos like "0starine")
+  const bannedHit = matchBannedOrContamination(baseNoDose || rawToken, 0.85);
+  if (bannedHit) {
+    const isBanned = bannedHit.severity === 'banned';
+    return {
+      raw: rawToken.trim(),
+      cleaned: cleanedRaw,
+      matchedName: bannedHit.name,
+      displayName: parenNote ? `${bannedHit.name} (${parenNote})` : bannedHit.name,
+      parenNote,
+      similarity: bannedHit.similarity,
+      correctionMade:
+        bannedHit.similarity < 1
+          ? `"${rawToken.trim()}" → "${bannedHit.name}" (${Math.round(bannedHit.similarity * 100)}%)`
+          : null,
+      unrecognized: false,
+      category: bannedHit.category,
+      status: isBanned ? 'banned_wada' : 'contamination_risk',
+      severity: bannedHit.severity,
+      reason: bannedHit.whyProblem,
+    };
+  }
+
   // 1. Exact dictionary/alias/E-number match
   const exact = EXACT_INGREDIENT_MAP.get(key);
   if (exact) {
@@ -515,12 +627,21 @@ export function parseLabelAndMatch(rawText) {
     .filter((m) => m.correctionMade)
     .map((m) => m.correctionMade);
 
+  const recognizedCount = matched.filter((m) => !m.unrecognized).length;
+  const totalCount = matched.length;
+  const matchRate = totalCount > 0 ? recognizedCount / totalCount : 0;
+  const unrecognizedRatio = totalCount > 0 ? (totalCount - recognizedCount) / totalCount : 1;
+
   return {
     foundRegion: region.foundRegion,
     sectionText: region.sectionText,
     proprietaryBlends: region.proprietaryBlends,
     ingredients: matched,
     corrections,
+    recognizedCount,
+    totalCount,
+    matchRate: Math.round(matchRate * 1000) / 1000,
+    unrecognizedRatio: Math.round(unrecognizedRatio * 1000) / 1000,
   };
 }
 
