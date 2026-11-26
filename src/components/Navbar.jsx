@@ -144,35 +144,17 @@ export default function Navbar({
         {/* Right Section: ML Health Pill, Theme Switcher, Language Pills & Sign In */}
         <div className="flex items-center gap-2 sm:gap-3">
 
-          {mlHealth && (
-            <button
-              type="button"
-              onClick={() => onRefreshMlHealth?.()}
-              title={
-                mlHealth.online
-                  ? 'Python ML Service Connected (Models Loaded)'
-                  : `ML Service Offline (${mlHealth.status || 'unavailable'}) — Click to retry`
-              }
-              className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border transition cursor-pointer ${
-                mlHealth.checking
-                  ? 'bg-slate-500/15 text-slate-500 border-slate-500/30'
-                  : mlHealth.online
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
-                  : 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40'
-              }`}
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  mlHealth.checking
-                    ? 'bg-amber-400 animate-pulse'
-                    : mlHealth.online
-                    ? 'bg-emerald-500'
-                    : 'bg-red-500'
-                }`}
-              ></span>
-              <span>{mlHealth.checking ? 'ML...' : mlHealth.online ? 'ML Online' : 'ML Offline'}</span>
-            </button>
-          )}
+          <span
+            title={
+              mlHealth?.online
+                ? 'Python ML Service & Built-In Purity Engine Connected'
+                : 'Built-In AI Label Scanner & Purity Engine Live'
+            }
+            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 select-none"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>{mlHealth?.online ? 'ML Online' : 'AI Live'}</span>
+          </span>
           
           {/* Day / Dark Mode Toggle Switch */}
           <button

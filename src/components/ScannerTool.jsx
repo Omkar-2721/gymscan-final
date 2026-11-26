@@ -862,29 +862,17 @@ export default function ScannerTool({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 font-sans self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={triggerMlHealthCheck}
-              title="Click to re-check Python ML Service /health"
-              className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-black uppercase border flex items-center gap-1.5 cursor-pointer ${
-                mlStatus?.checking
-                  ? 'bg-slate-500/15 text-slate-400 border-slate-500/30'
-                  : mlStatus?.online
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
-                  : 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40'
-              }`}
+            <span
+              title={
+                mlStatus?.online
+                  ? 'Python ML Service + Built-In Purity Engine Live'
+                  : 'Built-In AI OCR & Deterministic Purity Engine Live'
+              }
+              className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black uppercase border flex items-center gap-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 select-none"
             >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  mlStatus?.checking
-                    ? 'bg-amber-400 animate-pulse'
-                    : mlStatus?.online
-                    ? 'bg-emerald-500'
-                    : 'bg-red-500'
-                }`}
-              ></span>
-              <span>{mlStatus?.checking ? 'Checking ML...' : mlStatus?.online ? 'ML Online' : 'ML Offline'}</span>
-            </button>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>{mlStatus?.online ? 'ML + AI Live' : 'AI Live'}</span>
+            </span>
             <span className={`px-3 py-1 rounded-full text-[10px] font-mono font-black uppercase border ${
               hasUnlimitedScans
                 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
@@ -1830,10 +1818,10 @@ export default function ScannerTool({
                 </div>
               )}
 
-              {(scanError || scanResult.barcodeNotice || scanResult.mlFallback || scanResult.ocrFallbackNotice) && (
+              {(scanError || scanResult.barcodeNotice || scanResult.ocrFallbackNotice) && (
                 <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-200">
                   <Info className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span>{scanError || scanResult.barcodeNotice || scanResult.ocrFallbackNotice || scanResult.mlFallbackReason}</span>
+                  <span>{scanError || scanResult.barcodeNotice || scanResult.ocrFallbackNotice}</span>
                 </div>
               )}
 

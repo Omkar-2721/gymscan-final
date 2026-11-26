@@ -16,6 +16,10 @@ export function getMlBaseUrl() {
   if (typeof process !== 'undefined' && process.env?.GYMSCAN_ML_URL) {
     return process.env.GYMSCAN_ML_URL.replace(/\/$/, '');
   }
+  try {
+    const viteUrl = import.meta?.env?.VITE_ML_SERVICE_URL;
+    if (viteUrl) return String(viteUrl).replace(/\/$/, '');
+  } catch (_) {}
   return '/api/ml';
 }
 
@@ -524,10 +528,7 @@ export async function analyzeWithMLPipeline({ rawText, localResult }) {
       ...localResult,
       mlPowered: false,
       mlFallback: true,
-      mlFallbackReason:
-        err?.name === 'AbortError'
-          ? 'ML service timed out — using conservative built-in fallback scorer.'
-          : 'ML service offline — using conservative built-in fallback scorer.',
+      mlFallbackReason: null,
     };
   }
 }

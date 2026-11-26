@@ -279,6 +279,10 @@ async function callGeminiExtractionEndpoint(dataUrls) {
       body: JSON.stringify({ images: dataUrls }),
       signal: controller.signal,
     });
+    const ct = res.headers?.get?.('content-type') || '';
+    if (!ct.includes('application/json')) {
+      return { httpStatus: res.status, ok: false, fallbackRequired: true, reason: null };
+    }
     const json = await res.json();
     return { httpStatus: res.status, ...json };
   } finally {
